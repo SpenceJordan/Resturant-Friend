@@ -1306,7 +1306,7 @@
                         <span>Add to Cart</span>
                     </button>
                 </div>
-                <div class="menu-item" data-name="Kuane" data-price="450">
+                <div class="menu-item" data-name="Kuane" data-price="425">
                     <div class="item-image">
                         <img src="images/kuane.jpg" alt="Kuane" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="placeholder-img" style="--gradient-start: #51CF66; --gradient-end: #2B8A3E; display:none;">KU</div>
                     </div>
@@ -1446,7 +1446,7 @@
                         <span>Add to Cart</span>
                     </button>
                 </div>
-                <div class="menu-item" data-name="Davian" data-price="450">
+                <div class="menu-item" data-name="Davian" data-price="400">
                     <div class="item-image">
                         <img src="images/davian.jpg" alt="Davian" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="placeholder-img" style="--gradient-start: #FD79A8; --gradient-end: #E84393; display:none;">DA</div>
                     </div>
@@ -1467,7 +1467,7 @@
                 <div class="section-divider"></div>
             </div>
             <div class="items-grid">
-                <div class="menu-item" data-name="Jordan" data-price="450">
+                <div class="menu-item" data-name="Jordan" data-price="600">
                     <div class="item-image">
                         <img src="images/jordan.jpg" alt="Jordan" style="width:100%;height:100%;object-fit:cover;border-radius:50%;object-position:20% 5%;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="placeholder-img" style="--gradient-start: #FDCB6E; --gradient-end: #E17055; display:none;">JO</div>
                     </div>
@@ -1478,7 +1478,7 @@
                         <span>Add to Cart</span>
                     </button>
                 </div>
-                <div class="menu-item" data-name="Vanityi" data-price="450">
+                <div class="menu-item" data-name="Vanityi" data-price="500">
                     <div class="item-image">
                         <img src="images/vanityi.jpg" alt="Vanityi" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="placeholder-img" style="--gradient-start: #FF7675; --gradient-end: #D63031; display:none;">VA</div>
                     </div>
@@ -1489,7 +1489,7 @@
                         <span>Add to Cart</span>
                     </button>
                 </div>
-                <div class="menu-item" data-name="Amanda" data-price="450">
+                <div class="menu-item" data-name="Amanda" data-price="500">
                     <div class="item-image">
                         <img src="images/amanda.jpg" alt="Amanda" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="placeholder-img" style="--gradient-start: #A29BFE; --gradient-end: #6C5CE7; display:none;">AM2</div>
                     </div>
@@ -1934,12 +1934,9 @@
             
             // Hide empty sections
             document.querySelectorAll('.menu-section').forEach(section => {
-                const visibleItems = section.querySelectorAll('.menu-item:not([style*="display: none"])');
-                if (visibleItems.length === 0) {
-                    section.style.display = 'none';
-                } else {
-                    section.style.display = '';
-                }
+                const allItems = section.querySelectorAll('.menu-item');
+                const hasVisible = Array.from(allItems).some(item => item.style.display !== 'none');
+                section.style.display = hasVisible ? '' : 'none';
             });
         }
         
