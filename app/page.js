@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 
-const menuSections = [
+const defaultMenuSections = [
   {
     title: 'Sushi & Sashimi',
     items: [
@@ -53,11 +54,51 @@ const menuSections = [
   },
 ];
 
+// Merge default sections with custom ones stored in localStorage
+function buildMenuSections() {
+  if (typeof window === 'undefined') return defaultMenuSections;
+  try {
+    const customSections = JSON.parse(localStorage.getItem('wfd_custom_sections') || '[]');
+    const customItems = JSON.parse(localStorage.getItem('wfd_custom_items') || '[]');
+
+    // Deep-clone defaults so we don't mutate the original
+    const merged = defaultMenuSections.map((s) => ({ ...s, items: [...s.items] }));
+
+    // Add any new custom sections
+    customSections.forEach((title) => {
+      if (!merged.find((s) => s.title === title)) {
+        merged.push({ title, items: [] });
+      }
+    });
+
+    // Distribute custom items into their sections
+    customItems.forEach((item) => {
+      const section = merged.find((s) => s.title === item.section);
+      if (section) {
+        section.items.push({
+          name: item.name,
+          price: item.price,
+          description: item.description,
+          gradientStart: item.gradientStart,
+          gradientEnd: item.gradientEnd,
+          initials: item.initials,
+          imageData: item.imageData || null,
+        });
+      }
+    });
+
+    return merged.filter((s) => s.items.length > 0);
+  } catch {
+    return defaultMenuSections;
+  }
+}
+
 function formatPrice(price) {
   return price % 1 === 0 ? price : price.toFixed(2);
 }
 
 export default function RestaurantPage() {
+  const [menuSections, setMenuSections] = useState(defaultMenuSections);
   const [cart, setCart] = useState([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
@@ -73,6 +114,11 @@ export default function RestaurantPage() {
   const [imgErrors, setImgErrors] = useState(new Set());
 
   const toastTimerRef = useRef(null);
+
+  // Load custom items/sections from localStorage on mount
+  useEffect(() => {
+    setMenuSections(buildMenuSections());
+  }, []);
 
   const showToast = (message) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -173,7 +219,31 @@ export default function RestaurantPage() {
   return (
     <>
       {/* Header */}
-      <div className="header">
+      <div className="header" style={{ position: 'relative' }}>
+        <Link
+          href="/admin"
+          style={{
+            position: 'absolute',
+            top: '20px',
+            right: '20px',
+            fontSize: '0.8rem',
+            fontFamily: "'Crimson Text', serif",
+            fontWeight: 600,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: 'var(--dark)',
+            textDecoration: 'none',
+            opacity: 0.35,
+            padding: '6px 12px',
+            border: '1px solid currentColor',
+            borderRadius: '4px',
+            transition: 'opacity 0.2s ease',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.35')}
+        >
+          ⚙ Admin
+        </Link>
         <div className="logo-container">
           <div className="sushi-bowl"></div>
           <div>
@@ -219,6 +289,29 @@ export default function RestaurantPage() {
               </button>
             ))}
           </div>
+          {/* Category Jump Dropdown */}
+          <div style={{ position: 'relative' }}>
+            <select
+              className="search-input"
+              style={{ paddingLeft: '16px', cursor: 'pointer', minWidth: '180px' }}
+              defaultValue=""
+              onChange={(e) => {
+                const id = e.target.value;
+                if (!id) return;
+                const el = document.getElementById(id);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                e.target.value = '';
+              }}
+            >
+              <option value="" disabled>Jump to Category...</option>
+              {menuSections.map((s) => (
+                <option key={s.title} value={`section-${s.title.replace(/\s+/g, '-')}`}>
+                  {s.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <button className="clear-filters" onClick={clearFilters}>
             Clear All
           </button>
@@ -226,7 +319,7 @@ export default function RestaurantPage() {
 
         {/* Menu Sections */}
         {filteredSections.map((section) => (
-          <div key={section.title} className="menu-section">
+          <div key={section.title} id={`section-${section.title.replace(/\s+/g, '-')}`} className="menu-section">
             <div className="section-header">
               <h2>{section.title}</h2>
               <div className="section-divider"></div>
@@ -235,7 +328,13 @@ export default function RestaurantPage() {
               {section.items.map((item) => (
                 <div key={item.name} className="menu-item">
                   <div className="item-image">
-                    {!imgErrors.has(item.name) ? (
+                    {item.imageData ? (
+                      <img
+                        src={item.imageData}
+                        alt={item.name}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+                      />
+                    ) : !imgErrors.has(item.name) ? (
                       <img
                         src={`/images/${item.name.toLowerCase()}.jpg`}
                         alt={item.name}

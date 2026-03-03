@@ -630,6 +630,24 @@ h1 {
     pointer-events: all;
 }
 
+/* Tablet breakpoint */
+@media (max-width: 1024px) {
+    .items-grid {
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 35px;
+    }
+
+    .filter-bar {
+        padding: 20px 25px;
+        gap: 12px;
+    }
+
+    .main-content {
+        padding: 40px 25px;
+    }
+}
+
+/* Mobile breakpoint */
 @media (max-width: 768px) {
     .header {
         padding: 40px 20px 30px;
@@ -646,13 +664,13 @@ h1 {
     }
 
     .items-grid {
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 30px;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
     }
 
     .item-image {
-        width: 130px;
-        height: 130px;
+        width: 110px;
+        height: 110px;
     }
 
     .cart-float {
@@ -660,6 +678,146 @@ h1 {
         right: 20px;
         width: 60px;
         height: 60px;
+    }
+
+    /* Container padding reduction */
+    .container {
+        padding: 20px 12px 60px;
+    }
+
+    /* Filter bar stacks vertically */
+    .filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        padding: 15px 16px;
+        margin-bottom: 30px;
+    }
+
+    .search-box {
+        min-width: unset;
+        width: 100%;
+    }
+
+    .search-input {
+        width: 100%;
+        min-width: unset;
+        box-sizing: border-box;
+    }
+
+    /* Price filter group wraps */
+    .filter-group {
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .filter-btn {
+        padding: 6px 12px;
+        font-size: 0.85rem;
+    }
+
+    .filter-label {
+        width: 100%;
+    }
+
+    .clear-filters {
+        width: 100%;
+        text-align: center;
+        padding: 10px;
+    }
+
+    /* Main content padding */
+    .main-content {
+        padding: 30px 16px;
+    }
+
+    /* Section headings */
+    .section-title {
+        font-size: 2rem;
+    }
+
+    /* Item cards */
+    .item-card {
+        padding: 20px 12px;
+    }
+
+    .item-name {
+        font-size: 1.1rem;
+    }
+
+    /* Cart sidebar full-screen on mobile */
+    .cart-sidebar {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    /* Receipt full width */
+    .receipt {
+        padding: 25px 16px;
+    }
+
+    .receipt-title {
+        font-size: 2.5rem;
+    }
+
+    .receipt-buttons {
+        flex-direction: column;
+    }
+
+    /* Payment modal full width */
+    .payment-content {
+        padding: 35px 20px;
+    }
+
+    .payment-methods {
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .payment-option {
+        padding: 25px 12px;
+    }
+
+    .payment-icon {
+        font-size: 2.5rem;
+    }
+
+    .payment-label {
+        font-size: 1.3rem;
+    }
+
+    /* Customer modal */
+    .customer-content {
+        padding: 35px 16px;
+        margin: 10px;
+    }
+
+    .customer-title {
+        font-size: 2rem;
+    }
+}
+
+/* Small mobile (phones < 480px) */
+@media (max-width: 480px) {
+    .items-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .header {
+        padding: 30px 16px 20px;
+    }
+
+    .logo-title {
+        font-size: 2.8rem;
+    }
+
+    .payment-methods {
+        grid-template-columns: 1fr;
+    }
+
+    .receipt-date-row {
+        flex-direction: column;
+        gap: 4px;
     }
 }
 
