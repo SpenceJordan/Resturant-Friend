@@ -25,6 +25,39 @@ const GRADIENT_PRESETS = [
   { start: '#FDCB6E', end: '#E17055' },
 ];
 
+const DEFAULT_MENU = [
+  { title: 'Sushi & Sashimi', items: [
+    { name: 'Kristen', price: 450, description: 'Bold and unforgettable, perfect for special occasions' },
+    { name: 'Emma', price: 450, description: 'Sweet yet sophisticated, always a crowd favorite' },
+    { name: 'Anike', price: 450, description: 'Unique flavor profile with an adventurous spirit' },
+  ]},
+  { title: 'Ramen & Noodles', items: [
+    { name: 'Shanessa', price: 450, description: 'Warm and comforting, brings everyone together' },
+    { name: 'Kuane', price: 425, description: 'Budget-friendly option without compromising on quality' },
+    { name: 'Zahara', price: 450, description: 'Vibrant and full of energy, never disappoints' },
+  ]},
+  { title: 'Donburi & Rice Dishes', items: [
+    { name: 'Amelia', price: 450, description: 'Classic comfort with a modern twist' },
+    { name: 'Rianna', price: 450, description: 'Rich and satisfying, perfect for any mood' },
+    { name: 'Gabby', price: 450, description: 'Elegant and refined, a true delicacy' },
+  ]},
+  { title: 'Tempura & Appetizers', items: [
+    { name: 'Dimetri', price: 400, description: 'Light and crispy, the perfect starter' },
+    { name: 'Justin', price: 400, description: 'Golden and delightful, always a hit' },
+    { name: 'Kimani', price: 400, description: 'Spicy kick with incredible depth' },
+  ]},
+  { title: 'Soups & Sides', items: [
+    { name: 'Nathan', price: 400, description: 'Smooth and soothing, the ultimate comfort' },
+    { name: 'Scott', price: 400, description: 'Subtle flavors that grow on you' },
+    { name: 'Davian', price: 399.99, description: 'Surprisingly complex, worth savoring' },
+  ]},
+  { title: 'Desserts & Drinks', items: [
+    { name: 'Jordan', price: 600, description: 'Premium indulgence, worth every penny' },
+    { name: 'Vanityi', price: 500, description: 'Sweet with a hint of mystery' },
+    { name: 'Amanda', price: 500, description: 'Perfectly balanced, sophisticated finish' },
+  ]},
+];
+
 const EMPTY_ITEM = {
   name: '',
   price: '',
@@ -35,7 +68,22 @@ const EMPTY_ITEM = {
   gradientEnd: '#8B3030',
 };
 
+const ADMIN_USER = 'JordanSpence';
+const ADMIN_PASS = 'AdminJor';
+
 export default function AdminPage() {
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [loginUser, setLoginUser] = useState('');
+  const [loginPass, setLoginPass] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [showPass, setShowPass] = useState(false);
+
+  const [orders, setOrders] = useState([]);
+  const [expandedOrder, setExpandedOrder] = useState(null);
+  const [itemOverrides, setItemOverrides] = useState({});
+  const [editingKey, setEditingKey] = useState(null);
+  const [editDraft, setEditDraft] = useState({});
+
   const [customSections, setCustomSections] = useState([]);
   const [customItems, setCustomItems] = useState([]);
   const [activeTab, setActiveTab] = useState('items');
@@ -47,11 +95,86 @@ export default function AdminPage() {
   const toastTimerRef = useRef(null);
 
   useEffect(() => {
+    if (sessionStorage.getItem('wfd_admin_auth') === '1') setLoggedIn(true);
+  }, []);
+
+  useEffect(() => {
+    if (!loggedIn) return;
     const sections = JSON.parse(localStorage.getItem('wfd_custom_sections') || '[]');
     const items = JSON.parse(localStorage.getItem('wfd_custom_items') || '[]');
+    const savedOrders = JSON.parse(localStorage.getItem('wfd_orders') || '[]');
+    const overrides = JSON.parse(localStorage.getItem('wfd_item_overrides') || '{}');
     setCustomSections(sections);
     setCustomItems(items);
-  }, []);
+    setOrders(savedOrders);
+    setItemOverrides(overrides);
+  }, [loggedIn]);
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (loginUser === ADMIN_USER && loginPass === ADMIN_PASS) {
+      sessionStorage.setItem('wfd_admin_auth', '1');
+      setLoggedIn(true);
+      setLoginError('');
+    } else {
+      setLoginError('Incorrect username or password.');
+      setLoginPass('');
+    }
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('wfd_admin_auth');
+    setLoggedIn(false);
+    setLoginUser('');
+    setLoginPass('');
+  };
+
+  // ── Edit Menu helpers ──
+  const startEdit = (sectionTitle, item) => {
+    const key = `${sectionTitle}:${item.name}`;
+    const ov = itemOverrides[key];
+    setEditingKey(key);
+    setEditDraft({ name: ov?.name ?? item.name, price: ov?.price ?? item.price, description: ov?.description ?? item.description });
+  };
+
+  const saveEdit = (sectionTitle, originalName) => {
+    const key = `${sectionTitle}:${originalName}`;
+    const price = parseFloat(editDraft.price);
+    if (!editDraft.name.trim() || isNaN(price) || price <= 0) {
+      showToast('Name and valid price are required!', 'error');
+      return;
+    }
+    const updated = { ...itemOverrides, [key]: { name: editDraft.name.trim(), price, description: editDraft.description.trim() } };
+    setItemOverrides(updated);
+    localStorage.setItem('wfd_item_overrides', JSON.stringify(updated));
+    setEditingKey(null);
+    showToast('Item updated!');
+  };
+
+  const resetOverride = (sectionTitle, originalName) => {
+    const key = `${sectionTitle}:${originalName}`;
+    const updated = { ...itemOverrides };
+    delete updated[key];
+    setItemOverrides(updated);
+    localStorage.setItem('wfd_item_overrides', JSON.stringify(updated));
+    showToast('Reset to default!');
+  };
+
+  // ── Orders helpers ──
+  const deleteOrder = (id) => {
+    const updated = orders.filter((o) => o.id !== id);
+    setOrders(updated);
+    localStorage.setItem('wfd_orders', JSON.stringify(updated));
+    if (expandedOrder === id) setExpandedOrder(null);
+    showToast('Receipt deleted!');
+  };
+
+  const clearAllOrders = () => {
+    setOrders([]);
+    setExpandedOrder(null);
+    localStorage.setItem('wfd_orders', JSON.stringify([]));
+    showToast('All receipts cleared!');
+  };
 
   const allSections = [...DEFAULT_SECTIONS, ...customSections];
 
@@ -224,7 +347,7 @@ export default function AdminPage() {
         }
         .admin-form-grid {
           display: grid;
-          grid-template-columns: 240px 1fr;
+          grid-template-columns: 300px 1fr;
           gap: 40px;
           align-items: start;
         }
@@ -480,19 +603,184 @@ export default function AdminPage() {
         .admin-toast.show { opacity: 1; transform: translateY(0); pointer-events: all; }
         .admin-toast.success { background: var(--dark); color: white; }
         .admin-toast.error { background: var(--red); color: white; }
+        /* Login screen */
+        .login-screen {
+          min-height: 100vh;
+          background: var(--cream);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+        }
+        .login-box {
+          background: white;
+          padding: 50px 45px;
+          max-width: 420px;
+          width: 100%;
+          border-radius: 12px;
+          box-shadow: 0 8px 40px rgba(0,0,0,0.1);
+          text-align: center;
+        }
+        .login-icon {
+          font-size: 3rem;
+          margin-bottom: 16px;
+        }
+        .login-title {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: 2.4rem;
+          font-weight: 300;
+          color: var(--dark);
+          margin-bottom: 6px;
+        }
+        .login-title span { color: var(--red); }
+        .login-subtitle {
+          font-size: 0.95rem;
+          color: #999;
+          margin-bottom: 36px;
+        }
+        .login-field {
+          margin-bottom: 18px;
+          text-align: left;
+          position: relative;
+        }
+        .login-label {
+          display: block;
+          font-family: 'Crimson Text', serif;
+          font-size: 0.85rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: var(--dark);
+          margin-bottom: 8px;
+        }
+        .login-input {
+          width: 100%;
+          padding: 13px 16px;
+          border: 2px solid var(--cream);
+          border-radius: 6px;
+          font-family: 'Crimson Text', serif;
+          font-size: 1rem;
+          transition: border-color 0.3s ease;
+          background: white;
+        }
+        .login-input:focus { outline: none; border-color: var(--red); }
+        .login-input.error-field { border-color: var(--red); }
+        .pass-wrapper { position: relative; }
+        .pass-toggle {
+          position: absolute;
+          right: 14px;
+          top: 50%;
+          transform: translateY(-50%);
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: #aaa;
+          font-size: 1rem;
+          padding: 0;
+          line-height: 1;
+        }
+        .pass-toggle:hover { color: var(--dark); }
+        .login-error {
+          background: rgba(200,68,68,0.08);
+          border: 1px solid rgba(200,68,68,0.3);
+          color: var(--red);
+          border-radius: 6px;
+          padding: 10px 14px;
+          font-size: 0.9rem;
+          margin-bottom: 18px;
+          text-align: left;
+        }
+        .login-btn {
+          width: 100%;
+          background: var(--red);
+          color: white;
+          border: none;
+          padding: 16px;
+          font-family: 'Crimson Text', serif;
+          font-size: 1.1rem;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          cursor: pointer;
+          border-radius: 6px;
+          margin-top: 6px;
+          transition: all 0.3s ease;
+        }
+        .login-btn:hover { background: var(--dark); transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.15); }
+        .logout-btn {
+          padding: 10px 22px;
+          background: none;
+          border: 2px solid rgba(200,68,68,0.4);
+          color: var(--red);
+          font-family: 'Crimson Text', serif;
+          font-size: 0.9rem;
+          font-weight: 600;
+          cursor: pointer;
+          border-radius: 4px;
+          transition: all 0.3s ease;
+        }
+        .logout-btn:hover { background: var(--red); color: white; border-color: var(--red); }
         @media (max-width: 700px) {
           .admin-form-grid { grid-template-columns: 1fr; }
           .admin-card { padding: 25px 18px; }
-          .admin-tab { padding: 12px 18px; font-size: 0.9rem; }
+          .admin-tab { padding: 10px 14px; font-size: 0.85rem; }
           .gradient-row { flex-wrap: wrap; }
+          .login-box { padding: 35px 20px; }
+          .receipt-detail-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
 
+      {/* Login Screen */}
+      {!loggedIn && (
+        <div className="login-screen">
+          <div className="login-box">
+            <div className="login-icon">🔐</div>
+            <h1 className="login-title">Admin <span>Login</span></h1>
+            <p className="login-subtitle">Enter your credentials to continue</p>
+            <form onSubmit={handleLogin}>
+              <div className="login-field">
+                <label className="login-label">Username</label>
+                <input
+                  type="text"
+                  className={`login-input${loginError ? ' error-field' : ''}`}
+                  value={loginUser}
+                  onChange={(e) => { setLoginUser(e.target.value); setLoginError(''); }}
+                  placeholder="Username"
+                  autoComplete="username"
+                />
+              </div>
+              <div className="login-field">
+                <label className="login-label">Password</label>
+                <div className="pass-wrapper">
+                  <input
+                    type={showPass ? 'text' : 'password'}
+                    className={`login-input${loginError ? ' error-field' : ''}`}
+                    value={loginPass}
+                    onChange={(e) => { setLoginPass(e.target.value); setLoginError(''); }}
+                    placeholder="Password"
+                    autoComplete="current-password"
+                  />
+                  <button type="button" className="pass-toggle" onClick={() => setShowPass((p) => !p)}>
+                    {showPass ? '🙈' : '👁'}
+                  </button>
+                </div>
+              </div>
+              {loginError && <div className="login-error">⚠ {loginError}</div>}
+              <button type="submit" className="login-btn">Sign In</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Panel (only shown when logged in) */}
+      {loggedIn && (
       <div className="admin-wrapper">
         {/* Header */}
         <div className="admin-top-bar">
           <h1 className="admin-title">Admin <span>Panel</span></h1>
-          <Link href="/" className="back-link">&#8592; Back to Menu</Link>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <Link href="/" className="back-link">&#8592; Back to Menu</Link>
+            <button className="logout-btn" onClick={handleLogout}>Sign Out</button>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -514,6 +802,18 @@ export default function AdminPage() {
             onClick={() => setActiveTab('manage')}
           >
             All Entries ({customItems.length})
+          </button>
+          <button
+            className={`admin-tab${activeTab === 'edit' ? ' active' : ''}`}
+            onClick={() => setActiveTab('edit')}
+          >
+            Edit Menu
+          </button>
+          <button
+            className={`admin-tab${activeTab === 'receipts' ? ' active' : ''}`}
+            onClick={() => setActiveTab('receipts')}
+          >
+            Receipts ({orders.length})
           </button>
         </div>
 
@@ -547,7 +847,7 @@ export default function AdminPage() {
                 </div>
 
                 <div className="admin-form-group">
-                  <label className="admin-label">Fallback Color (if no photo)</label>
+                  <label className="admin-label">Avatar Color</label>
                   <div className="gradient-row">
                     <div
                       className="gradient-ball"
@@ -738,12 +1038,175 @@ export default function AdminPage() {
             )}
           </div>
         )}
-      </div>
+
+        {/* ── EDIT MENU TAB ── */}
+        {activeTab === 'edit' && (
+          <div className="admin-card">
+            <h2 className="admin-card-title">Edit Main Dishes</h2>
+            {DEFAULT_MENU.map((section) => (
+              <div key={section.title} style={{ marginBottom: '36px' }}>
+                <div className="list-heading">{section.title}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {section.items.map((item) => {
+                    const key = `${section.title}:${item.name}`;
+                    const ov = itemOverrides[key];
+                    const isEditing = editingKey === key;
+                    const displayName = ov?.name ?? item.name;
+                    const displayPrice = ov?.price ?? item.price;
+                    const displayDesc = ov?.description ?? item.description;
+                    return (
+                      <div key={item.name} className="section-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '12px' }}>
+                        {!isEditing ? (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                            <div>
+                              <span className="sname">{displayName}</span>
+                              {ov && <span className="badge badge-custom" style={{ marginLeft: '8px' }}>Edited</span>}
+                              <div style={{ fontSize: '0.85rem', color: '#888', marginTop: '3px' }}>
+                                ${displayPrice % 1 === 0 ? displayPrice : displayPrice.toFixed(2)} — {displayDesc}
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              {ov && (
+                                <button className="del-btn" style={{ borderColor: '#aaa', color: '#aaa' }} onClick={() => resetOverride(section.title, item.name)}>
+                                  Reset
+                                </button>
+                              )}
+                              <button className="section-add-btn" style={{ padding: '6px 18px', fontSize: '0.9rem' }} onClick={() => startEdit(section.title, item)}>
+                                Edit
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '12px', marginBottom: '10px' }}>
+                              <div className="admin-form-group" style={{ marginBottom: 0 }}>
+                                <label className="admin-label">Name</label>
+                                <input className="admin-input" value={editDraft.name} onChange={(e) => setEditDraft((p) => ({ ...p, name: e.target.value }))} />
+                              </div>
+                              <div className="admin-form-group" style={{ marginBottom: 0, minWidth: '110px' }}>
+                                <label className="admin-label">Price ($)</label>
+                                <input className="admin-input" type="number" min="0" step="0.01" value={editDraft.price} onChange={(e) => setEditDraft((p) => ({ ...p, price: e.target.value }))} />
+                              </div>
+                            </div>
+                            <div className="admin-form-group" style={{ marginBottom: '12px' }}>
+                              <label className="admin-label">Description</label>
+                              <input className="admin-input" value={editDraft.description} onChange={(e) => setEditDraft((p) => ({ ...p, description: e.target.value }))} />
+                            </div>
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                              <button className="admin-submit" style={{ margin: 0, flex: 1, padding: '10px' }} onClick={() => saveEdit(section.title, item.name)}>
+                                Save
+                              </button>
+                              <button className="del-btn" style={{ flex: 1 }} onClick={() => setEditingKey(null)}>
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── RECEIPTS TAB ── */}
+        {activeTab === 'receipts' && (
+          <div className="admin-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '30px' }}>
+              <h2 className="admin-card-title" style={{ marginBottom: 0, borderBottom: 'none', paddingBottom: 0 }}>
+                Orders ({orders.length})
+              </h2>
+              {orders.length > 0 && (
+                <button className="del-btn" onClick={clearAllOrders} style={{ padding: '8px 20px' }}>
+                  Clear All
+                </button>
+              )}
+            </div>
+
+            {orders.length === 0 ? (
+              <div className="empty-state">No orders yet — receipts will appear here when customers check out!</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {orders.map((order) => {
+                  const isOpen = expandedOrder === order.id;
+                  return (
+                    <div key={order.id} style={{ border: '2px solid var(--cream)', borderRadius: '8px', overflow: 'hidden' }}>
+                      {/* Summary row */}
+                      <div
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', cursor: 'pointer', background: isOpen ? 'var(--cream)' : 'white', gap: '12px', flexWrap: 'wrap' }}
+                        onClick={() => setExpandedOrder(isOpen ? null : order.id)}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <div style={{ fontWeight: 700, fontFamily: "'Cormorant Garamond', serif", fontSize: '1.1rem' }}>
+                            {order.customerInfo?.name || 'Unknown'}
+                            <span className="badge badge-custom" style={{ marginLeft: '10px', background: order.paymentMethod === 'cash' ? '#51CF66' : '#4C6EF5' }}>
+                              {order.paymentMethod === 'cash' ? 'Cash' : 'Card'}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '0.85rem', color: '#888' }}>
+                            {order.day} {order.date} at {order.time} · {order.items.length} item{order.items.length !== 1 ? 's' : ''}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span style={{ fontWeight: 700, color: 'var(--red)', fontSize: '1.15rem' }}>
+                            ${order.total % 1 === 0 ? order.total : order.total.toFixed(2)}
+                          </span>
+                          <span style={{ color: '#aaa', fontSize: '0.85rem' }}>{isOpen ? '▲' : '▼'}</span>
+                        </div>
+                      </div>
+
+                      {/* Expanded details */}
+                      {isOpen && (
+                        <div style={{ padding: '18px', borderTop: '2px solid var(--cream)', background: 'white' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '18px' }}>
+                            <div>
+                              <div className="admin-label" style={{ marginBottom: '8px' }}>Customer Info</div>
+                              <div style={{ fontSize: '0.9rem', lineHeight: '1.7', color: '#555' }}>
+                                <div><strong>{order.customerInfo?.name}</strong></div>
+                                {order.customerInfo?.email && <div>{order.customerInfo.email}</div>}
+                                {order.customerInfo?.phone && <div>{order.customerInfo.phone}</div>}
+                                {order.customerInfo?.address && <div>{order.customerInfo.address}</div>}
+                                {order.customerInfo?.city && <div>{order.customerInfo.city} {order.customerInfo.postal}</div>}
+                                {order.customerInfo?.notes && <div style={{ fontStyle: 'italic', marginTop: '6px' }}>"{order.customerInfo.notes}"</div>}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="admin-label" style={{ marginBottom: '8px' }}>Items Ordered</div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                {order.items.map((item, i) => (
+                                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', padding: '4px 0', borderBottom: '1px solid var(--cream)' }}>
+                                    <span>{item.name}</span>
+                                    <span style={{ color: 'var(--red)', fontWeight: 600 }}>${item.price % 1 === 0 ? item.price : item.price.toFixed(2)}</span>
+                                  </div>
+                                ))}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginTop: '8px', fontSize: '1rem' }}>
+                                  <span>Total</span>
+                                  <span style={{ color: 'var(--red)' }}>${order.total % 1 === 0 ? order.total : order.total.toFixed(2)}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          <button className="del-btn" onClick={() => deleteOrder(order.id)}>
+                            Delete Receipt
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
       {/* Toast */}
       <div className={`admin-toast${toast.show ? ' show' : ''} ${toast.type}`}>
         {toast.type === 'success' ? '✓' : '✕'} {toast.message}
       </div>
+      </div>
+      )}
     </>
   );
 }

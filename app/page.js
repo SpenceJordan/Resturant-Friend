@@ -61,8 +61,16 @@ function buildMenuSections() {
     const customSections = JSON.parse(localStorage.getItem('wfd_custom_sections') || '[]');
     const customItems = JSON.parse(localStorage.getItem('wfd_custom_items') || '[]');
 
-    // Deep-clone defaults so we don't mutate the original
-    const merged = defaultMenuSections.map((s) => ({ ...s, items: [...s.items] }));
+    const overrides = JSON.parse(localStorage.getItem('wfd_item_overrides') || '{}');
+
+    // Deep-clone defaults and apply any admin edits
+    const merged = defaultMenuSections.map((s) => ({
+      ...s,
+      items: s.items.map((item) => {
+        const key = `${s.title}:${item.name}`;
+        return overrides[key] ? { ...item, ...overrides[key] } : item;
+      }),
+    }));
 
     // Add any new custom sections
     customSections.forEach((title) => {
@@ -178,14 +186,21 @@ export default function RestaurantPage() {
     if (!selectedPayment) return;
     const now = new Date();
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    setReceiptData({
+    const order = {
+      id: Date.now().toString(),
       day: days[now.getDay()],
       date: `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()}`,
+      time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       items: [...cart],
       total: cartTotal,
       customerInfo: { ...customerInfo },
       paymentMethod: selectedPayment,
-    });
+    };
+    try {
+      const existing = JSON.parse(localStorage.getItem('wfd_orders') || '[]');
+      localStorage.setItem('wfd_orders', JSON.stringify([order, ...existing]));
+    } catch {}
+    setReceiptData(order);
     setPaymentModalOpen(false);
     setCart([]);
     setCartOpen(false);
