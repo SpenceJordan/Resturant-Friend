@@ -1211,9 +1211,10 @@
             }
         }
         .supabase-status {
-            position: fixed; bottom: 12px; left: 12px;
-            font-size: 11px; padding: 4px 8px; border-radius: 6px;
-            background: rgba(0,0,0,0.6); color: #fff; z-index: 9998;
+            position: fixed; top: 12px; right: 12px;
+            font-size: 12px; padding: 6px 12px; border-radius: 8px;
+            background: #333; color: #fff; z-index: 10001;
+            font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }
         .supabase-status.ok { background: #2b8a3e; }
         .supabase-status.fail { background: #c92a2a; }
@@ -1221,7 +1222,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-    <div class="supabase-status" id="supabaseStatus">Supabase: checking…</div>
+    <div class="supabase-status" id="supabaseStatus" title="Backend connection for saving orders">Backend: checking…</div>
     <div class="header">
         <div class="logo-container">
             <div class="sushi-bowl"></div>
@@ -1657,7 +1658,7 @@
         (function() {
             var el = document.getElementById('supabaseStatus');
             if (el) {
-                el.textContent = supabase ? 'Supabase: connected' : 'Supabase: not loaded – orders won\'t save';
+                el.textContent = supabase ? 'Backend: connected' : 'Backend: not connected';
                 el.className = 'supabase-status ' + (supabase ? 'ok' : 'fail');
             }
         })();
@@ -1830,7 +1831,7 @@
             }
 
             if (!supabase) {
-                showToast('Supabase client not initialised – check script include.');
+                showToast('Orders cannot be saved: backend not connected. Check that the Supabase script loads.');
                 return;
             }
 
@@ -1904,6 +1905,15 @@
             const day = now.getDate();
             const year = now.getFullYear();
             receiptDate.textContent = `${month}/${day}/${year}`;
+            const savedToBackend = !!orderCreatedAt;
+            const dateRowEl = document.querySelector('.receipt-date-row');
+            if (dateRowEl && !dateRowEl.nextElementSibling?.classList?.contains('receipt-backend-status')) {
+                const backendNote = document.createElement('div');
+                backendNote.className = 'receipt-backend-status';
+                backendNote.style.cssText = 'margin-top:8px;font-size:0.85rem;' + (savedToBackend ? 'color:#51cf66;' : 'color:#ffa94d;');
+                backendNote.textContent = savedToBackend ? '✓ Saved to backend' : '⚠ Not saved to backend';
+                dateRowEl.parentNode.insertBefore(backendNote, dateRowEl.nextSibling);
+            }
             
             // Add customer info to receipt
             const customerInfoHTML = `
@@ -1977,11 +1987,13 @@
 
         function closeReceipt() {
             document.getElementById('receiptOverlay').classList.remove('active');
-            // Clean up dynamically added customer info
-            const existingCustomerInfo = document.querySelector('.receipt').querySelectorAll('div')[3];
+            const receiptEl = document.querySelector('.receipt');
+            const existingCustomerInfo = receiptEl && receiptEl.querySelectorAll('div')[3];
             if (existingCustomerInfo && existingCustomerInfo.innerHTML.includes('Customer Information')) {
                 existingCustomerInfo.remove();
             }
+            const backendNote = receiptEl && receiptEl.querySelector('.receipt-backend-status');
+            if (backendNote) backendNote.remove();
         }
 
         // Load menu images from Supabase so they can be managed via the admin page
