@@ -232,6 +232,8 @@ export default function RestaurantPage() {
         console.error('Supabase error:', err);
         showToast('Order not saved to cloud: ' + (err?.message || String(err)));
       }
+    } else {
+      showToast('Saved on this device only. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel to save to Supabase.');
     }
 
     try {
@@ -271,6 +273,26 @@ export default function RestaurantPage() {
 
   return (
     <>
+      {/* Backend status – visible so you know if Supabase is connected */}
+      <div
+        style={{
+          position: 'fixed',
+          top: 12,
+          right: 12,
+          zIndex: 10001,
+          fontSize: '12px',
+          fontWeight: 600,
+          padding: '6px 12px',
+          borderRadius: 8,
+          color: '#fff',
+          background: supabase ? '#2b8a3e' : '#c92a2a',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+        }}
+        title={supabase ? 'Orders save to Supabase' : 'Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel'}
+      >
+        {supabase ? 'Backend: connected' : 'Backend: not connected'}
+      </div>
+
       {/* Header */}
       <div className="header" style={{ position: 'relative' }}>
         <Link
