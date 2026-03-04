@@ -23,18 +23,6 @@ create table if not exists public.order_items (
   price numeric not null
 );
 
--- Optional: allow anonymous inserts (adjust RLS as needed for your auth)
-alter table public.orders enable row level security;
-alter table public.order_items enable row level security;
-
-create policy "Allow anonymous insert on orders"
-  on public.orders for insert
-  with check (true);
-
-create policy "Allow anonymous insert on order_items"
-  on public.order_items for insert
-  with check (true);
-
 -- Menu images (one row per menu item, stores the image URL)
 create table if not exists public.menu_images (
   item_name text primary key,
@@ -42,7 +30,36 @@ create table if not exists public.menu_images (
   created_at timestamptz default now()
 );
 
+-- Enable RLS on all tables
+alter table public.orders enable row level security;
+alter table public.order_items enable row level security;
 alter table public.menu_images enable row level security;
+
+-- Drop existing policies so this script is safe to re-run
+drop policy if exists "Allow anonymous select on orders" on public.orders;
+drop policy if exists "Allow anonymous insert on orders" on public.orders;
+drop policy if exists "Allow anonymous select on order_items" on public.order_items;
+drop policy if exists "Allow anonymous insert on order_items" on public.order_items;
+drop policy if exists "Allow anonymous read menu_images" on public.menu_images;
+drop policy if exists "Allow anonymous upsert menu_images" on public.menu_images;
+drop policy if exists "Allow anonymous update menu_images" on public.menu_images;
+
+-- Orders: anon needs SELECT so .insert().select('id, created_at') returns the new row
+create policy "Allow anonymous select on orders"
+  on public.orders for select
+  using (true);
+
+create policy "Allow anonymous insert on orders"
+  on public.orders for insert
+  with check (true);
+
+create policy "Allow anonymous select on order_items"
+  on public.order_items for select
+  using (true);
+
+create policy "Allow anonymous insert on order_items"
+  on public.order_items for insert
+  with check (true);
 
 create policy "Allow anonymous read menu_images"
   on public.menu_images for select
