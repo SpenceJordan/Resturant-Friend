@@ -34,3 +34,25 @@ create policy "Allow anonymous insert on orders"
 create policy "Allow anonymous insert on order_items"
   on public.order_items for insert
   with check (true);
+
+-- Menu images (one row per menu item, stores the image URL)
+create table if not exists public.menu_images (
+  item_name text primary key,
+  image_url text not null,
+  created_at timestamptz default now()
+);
+
+alter table public.menu_images enable row level security;
+
+create policy "Allow anonymous read menu_images"
+  on public.menu_images for select
+  using (true);
+
+create policy "Allow anonymous upsert menu_images"
+  on public.menu_images for insert
+  with check (true);
+
+create policy "Allow anonymous update menu_images"
+  on public.menu_images for update
+  using (true)
+  with check (true);

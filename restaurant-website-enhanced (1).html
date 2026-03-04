@@ -1810,6 +1810,7 @@
             if (!selectedPaymentMethod) return;
 
             const total = cart.reduce((sum, item) => sum + item.price, 0);
+            let receiptTimestamp = null;
 
             if (supabase) {
                 try {
@@ -1826,10 +1827,12 @@
                             total: total,
                             payment_method: selectedPaymentMethod
                         })
-                        .select('id')
+                        .select('id, created_at')
                         .single();
 
                     if (orderError) throw orderError;
+
+                    receiptTimestamp = order.created_at;
 
                     const orderItems = cart.map(item => ({
                         order_id: order.id,
@@ -1849,7 +1852,7 @@
             }
 
             closePaymentModal();
-            generateReceipt();
+            generateReceipt(receiptTimestamp);
             cart = [];
             updateCart();
             closeCart();
@@ -1859,14 +1862,14 @@
             document.getElementById('paymentModal').classList.remove('active');
         }
 
-        function generateReceipt() {
+        function generateReceipt(orderCreatedAt) {
             const receiptOverlay = document.getElementById('receiptOverlay');
             const receiptItems = document.getElementById('receiptItems');
             const receiptDay = document.getElementById('receiptDay');
             const receiptDate = document.getElementById('receiptDate');
             
-            // Set current day and date
-            const now = new Date();
+            // Set day and date based on when the order was created
+            const now = orderCreatedAt ? new Date(orderCreatedAt) : new Date();
             const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
             receiptDay.textContent = days[now.getDay()];
             
@@ -1953,6 +1956,38 @@
                 existingCustomerInfo.remove();
             }
         }
+
+        // Load menu images from Supabase so they can be managed via the admin page
+        async function loadMenuImages() {
+            if (!supabase) return;
+
+            try {
+                const { data, error } = await supabase
+                    .from('menu_images')
+                    .select('item_name, image_url');
+
+                if (error || !data) return;
+
+                const imageMap = {};
+                data.forEach(row => {
+                    imageMap[row.item_name] = row.image_url;
+                });
+
+                document.querySelectorAll('.menu-item').forEach(item => {
+                    const name = item.dataset.name;
+                    const img = item.querySelector('.item-image img');
+                    if (name && img && imageMap[name]) {
+                        img.src = imageMap[name];
+                    }
+                });
+            } catch (err) {
+                console.error('Error loading menu images from Supabase:', err);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadMenuImages();
+        });
         
         // Search and Filter Functions
         let currentPriceFilter = 'all';
