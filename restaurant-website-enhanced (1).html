@@ -1210,10 +1210,18 @@
                 display: none !important;
             }
         }
+        .supabase-status {
+            position: fixed; bottom: 12px; left: 12px;
+            font-size: 11px; padding: 4px 8px; border-radius: 6px;
+            background: rgba(0,0,0,0.6); color: #fff; z-index: 9998;
+        }
+        .supabase-status.ok { background: #2b8a3e; }
+        .supabase-status.fail { background: #c92a2a; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
+    <div class="supabase-status" id="supabaseStatus">Supabase: checking…</div>
     <div class="header">
         <div class="logo-container">
             <div class="sushi-bowl"></div>
@@ -1643,7 +1651,16 @@
         // Supabase – replace with your project URL and anon key (use env vars in production)
         const SUPABASE_URL = 'https://eimpmgytdzabsmjzrnot.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVpbXBtZ3l0ZHphYnNtanpybm90Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1ODExOTksImV4cCI6MjA4ODE1NzE5OX0.ehk9GuAAaQtEBG_-R2gZMOjxvUG-d4v341_SMmuTRAs';
-        const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+        const supabase = (typeof window !== 'undefined' && window.supabase)
+            ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+            : null;
+        (function() {
+            var el = document.getElementById('supabaseStatus');
+            if (el) {
+                el.textContent = supabase ? 'Supabase: connected' : 'Supabase: not loaded – orders won\'t save';
+                el.className = 'supabase-status ' + (supabase ? 'ok' : 'fail');
+            }
+        })();
 
         let cart = [];
         let selectedPaymentMethod = null;
@@ -1854,8 +1871,9 @@
                     showToast('Order saved successfully!');
                 } catch (err) {
                     console.error('Supabase error:', err);
-                    const message = err?.message || err?.hint || String(err);
-                    showToast('Order could not be saved: ' + message);
+                    const msg = (err && (err.message || err.msg || err.error_description)) || String(err);
+                    const code = err && err.code;
+                    showToast('Order not saved: ' + (code ? code + ' – ' : '') + msg);
                     return;
                 }
             }
