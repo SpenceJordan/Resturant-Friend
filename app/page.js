@@ -2,6 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
 
 const defaultMenuSections = [
   {
@@ -182,7 +187,7 @@ export default function RestaurantPage() {
     setPaymentModalOpen(true);
   };
 
-  const confirmPayment = () => {
+  const confirmPayment = async () => {
     if (!selectedPayment) return;
     const now = new Date();
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -196,6 +201,39 @@ export default function RestaurantPage() {
       customerInfo: { ...customerInfo },
       paymentMethod: selectedPayment,
     };
+
+    if (supabase) {
+      try {
+        const { data: savedOrder, error: orderError } = await supabase
+          .from('orders')
+          .insert({
+            customer_name: customerInfo.name,
+            customer_email: customerInfo.email,
+            customer_phone: customerInfo.phone,
+            customer_address: customerInfo.address,
+            customer_city: customerInfo.city,
+            customer_postal: customerInfo.postal,
+            customer_notes: customerInfo.notes || null,
+            total: cartTotal,
+            payment_method: selectedPayment,
+          })
+          .select('id, created_at')
+          .single();
+        if (orderError) throw orderError;
+        const orderItems = cart.map((item) => ({
+          order_id: savedOrder.id,
+          item_name: item.name,
+          price: item.price,
+        }));
+        const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
+        if (itemsError) throw itemsError;
+        showToast('Order saved successfully!');
+      } catch (err) {
+        console.error('Supabase error:', err);
+        showToast('Order not saved to cloud: ' + (err?.message || String(err)));
+      }
+    }
+
     try {
       const existing = JSON.parse(localStorage.getItem('wfd_orders') || '[]');
       localStorage.setItem('wfd_orders', JSON.stringify([order, ...existing]));
