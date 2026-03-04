@@ -1807,7 +1807,15 @@
         }
 
         async function confirmPayment() {
-            if (!selectedPaymentMethod) return;
+            if (!selectedPaymentMethod) {
+                showToast('Please select a payment method first.');
+                return;
+            }
+
+            if (!supabase) {
+                showToast('Supabase client not initialised – check script include.');
+                return;
+            }
 
             const total = cart.reduce((sum, item) => sum + item.price, 0);
             let receiptTimestamp = null;
@@ -1846,7 +1854,8 @@
                     showToast('Order saved successfully!');
                 } catch (err) {
                     console.error('Supabase error:', err);
-                    showToast('Order could not be saved. Please try again.');
+                    const message = err?.message || err?.hint || String(err);
+                    showToast('Order could not be saved: ' + message);
                     return;
                 }
             }
