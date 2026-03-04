@@ -1211,6 +1211,7 @@
             }
         }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
     <div class="header">
@@ -1639,6 +1640,11 @@
     </div>
 
     <script>
+        // Supabase – replace with your project URL and anon key (use env vars in production)
+        const SUPABASE_URL = 'https://eimpmgytdzabsmjzrnot.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVpbXBtZ3l0ZHphYnNtanpybm90Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1ODExOTksImV4cCI6MjA4ODE1NzE5OX0.ehk9GuAAaQtEBG_-R2gZMOjxvUG-d4v341_SMmuTRAs';
+        const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
         let cart = [];
         let selectedPaymentMethod = null;
         let customerInfo = {};
@@ -1800,9 +1806,48 @@
             document.getElementById('confirmPaymentBtn').classList.add('active');
         }
 
-        function confirmPayment() {
+        async function confirmPayment() {
             if (!selectedPaymentMethod) return;
-            
+
+            const total = cart.reduce((sum, item) => sum + item.price, 0);
+
+            if (supabase) {
+                try {
+                    const { data: order, error: orderError } = await supabase
+                        .from('orders')
+                        .insert({
+                            customer_name: customerInfo.name,
+                            customer_email: customerInfo.email,
+                            customer_phone: customerInfo.phone,
+                            customer_address: customerInfo.address,
+                            customer_city: customerInfo.city,
+                            customer_postal: customerInfo.postal,
+                            customer_notes: customerInfo.notes || null,
+                            total: total,
+                            payment_method: selectedPaymentMethod
+                        })
+                        .select('id')
+                        .single();
+
+                    if (orderError) throw orderError;
+
+                    const orderItems = cart.map(item => ({
+                        order_id: order.id,
+                        item_name: item.name,
+                        price: item.price
+                    }));
+
+                    const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
+                    if (itemsError) throw itemsError;
+
+                    showToast('Order saved successfully!');
+                } catch (err) {
+                    console.error('Supabase error:', err);
+                    showToast('Order could not be saved. Please try again.');
+                    return;
+                }
+            }
+
             closePaymentModal();
             generateReceipt();
             cart = [];
