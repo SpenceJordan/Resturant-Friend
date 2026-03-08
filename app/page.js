@@ -109,7 +109,7 @@ function buildMenuSections(customSections, customItems, sectionOrder, sectionRen
       ? [...sectionOrder.filter((t) => sectionMap[t]), ...allKeys.filter((t) => !sectionOrder.includes(t))]
       : allKeys;
 
-    return ordered.map((t) => sectionMap[t]).filter(Boolean).filter((s) => s.items.length > 0);
+    return ordered.map((t) => sectionMap[t]).filter(Boolean);
   } catch {
     return defaultMenuSections;
   }
@@ -329,7 +329,7 @@ export default function RestaurantPage() {
         return matchesSearch && matchesPrice;
       }),
     }))
-    .filter((section) => section.items.length > 0);
+    .filter((section) => section.items.length > 0 || menuSections.find((s) => s.title === section.title)?.items.length === 0);
 
   const clearFilters = () => {
     setSearchTerm('');
@@ -444,6 +444,11 @@ export default function RestaurantPage() {
               <h2>{section.title}</h2>
               <div className="section-divider"></div>
             </div>
+            {section.items.length === 0 && (
+              <div style={{ fontFamily: "'Crimson Text', serif", fontStyle: 'italic', color: '#aaa', fontSize: '1.1rem', padding: '20px 0 40px' }}>
+                Coming soon — check back later!
+              </div>
+            )}
             <div className="items-grid">
               {section.items.map((item) => (
                 <div key={item.name} className="menu-item">
