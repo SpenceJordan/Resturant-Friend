@@ -128,13 +128,21 @@ export default function AdminPage() {
             // Normalize Supabase rows to match the localStorage shape
             const normalized = data.map((o) => ({
               id: o.id,
-              date: o.date || o.created_at?.split('T')[0],
-              time: o.time || o.created_at?.split('T')[1]?.slice(0, 5),
-              day: o.day || '',
-              customerInfo: o.customer_info || o.customerInfo || {},
-              paymentMethod: o.payment_method || o.paymentMethod || '',
+              date: o.created_at?.split('T')[0] || '',
+              time: o.created_at?.split('T')[1]?.slice(0, 5) || '',
+              day: '',
+              customerInfo: {
+                name: o.customer_name || '',
+                email: o.customer_email || '',
+                phone: o.customer_phone || '',
+                address: o.customer_address || '',
+                city: o.customer_city || '',
+                postal: o.customer_postal || '',
+                notes: o.customer_notes || '',
+              },
+              paymentMethod: o.payment_method || '',
               total: o.total,
-              items: (o.order_items || []).map((i) => ({ name: i.name, price: i.price })),
+              items: (o.order_items || []).map((i) => ({ name: i.item_name, price: i.price })),
             }));
             setOrders(normalized);
             return;
@@ -1309,7 +1317,12 @@ export default function AdminPage() {
                                 {order.customerInfo?.phone && <div>{order.customerInfo.phone}</div>}
                                 {order.customerInfo?.address && <div>{order.customerInfo.address}</div>}
                                 {order.customerInfo?.city && <div>{order.customerInfo.city} {order.customerInfo.postal}</div>}
-                                {order.customerInfo?.notes && <div style={{ fontStyle: 'italic', marginTop: '6px' }}>"{order.customerInfo.notes}"</div>}
+                                {order.customerInfo?.notes && (
+                                  <div style={{ marginTop: '10px', padding: '8px 12px', background: '#fffbf0', border: '1px solid #f0d080', borderRadius: '6px', borderLeft: '3px solid #D4AF37' }}>
+                                    <div style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.08em', color: '#a07800', marginBottom: '3px' }}>NOTE</div>
+                                    <div style={{ fontStyle: 'italic', color: '#555' }}>{order.customerInfo.notes}</div>
+                                  </div>
+                                )}
                               </div>
                             </div>
                             <div>
