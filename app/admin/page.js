@@ -2,6 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
 
 const DEFAULT_SECTIONS = [
   'Sushi & Sashimi',
@@ -811,6 +816,14 @@ export default function AdminPage() {
         <div className="admin-top-bar">
           <h1 className="admin-title">Admin <span>Panel</span></h1>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <div style={{
+              fontSize: '11px', fontWeight: 600, padding: '5px 10px', borderRadius: 6,
+              color: '#fff', background: supabase ? '#2b8a3e' : '#c92a2a',
+            }}
+              title={supabase ? 'Orders save to Supabase' : 'Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel'}
+            >
+              {supabase ? '● Supabase connected' : '● Supabase not connected'}
+            </div>
             <Link href="/" className="back-link">&#8592; Back to Menu</Link>
             <button className="logout-btn" onClick={handleLogout}>Sign Out</button>
           </div>
