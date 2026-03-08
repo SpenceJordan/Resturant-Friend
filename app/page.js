@@ -60,49 +60,56 @@ const defaultMenuSections = [
 ];
 
 // Merge default sections with custom ones stored in localStorage
-function buildMenuSections(customSections, customItems) {
+function buildMenuSections(customSections, customItems, sectionOrder, sectionRenames) {
   if (typeof window === 'undefined') return defaultMenuSections;
   try {
     if (!customSections) customSections = JSON.parse(localStorage.getItem('wfd_custom_sections') || '[]');
     if (!customItems) customItems = JSON.parse(localStorage.getItem('wfd_custom_items') || '[]');
+    if (!sectionOrder) sectionOrder = JSON.parse(localStorage.getItem('wfd_section_order') || 'null');
+    if (!sectionRenames) sectionRenames = JSON.parse(localStorage.getItem('wfd_section_renames') || '{}');
 
     const overrides = JSON.parse(localStorage.getItem('wfd_item_overrides') || '{}');
 
-    // Deep-clone defaults and apply any admin edits
-    const merged = defaultMenuSections.map((s) => ({
-      ...s,
-      items: s.items.map((item) => {
-        const key = `${s.title}:${item.name}`;
-        return overrides[key] ? { ...item, ...overrides[key] } : item;
-      }),
-    }));
-
-    // Add any new custom sections
+    // Build section map with display names
+    const sectionMap = {};
+    defaultMenuSections.forEach((s) => {
+      const displayTitle = sectionRenames?.[s.title] ?? s.title;
+      sectionMap[s.title] = {
+        title: displayTitle,
+        _originalTitle: s.title,
+        items: s.items.map((item) => {
+          const key = `${s.title}:${item.name}`;
+          return overrides[key] ? { ...item, ...overrides[key] } : item;
+        }),
+      };
+    });
     customSections.forEach((title) => {
-      if (!merged.find((s) => s.title === title)) {
-        merged.push({ title, items: [] });
+      if (!sectionMap[title]) {
+        const displayTitle = sectionRenames?.[title] ?? title;
+        sectionMap[title] = { title: displayTitle, _originalTitle: title, items: [] };
       }
     });
 
-    // Distribute custom items into their sections
+    // Distribute custom items
     customItems.forEach((item) => {
-      const section = merged.find((s) => s.title === item.section);
-      if (section) {
-        section.items.push({
-          name: item.name,
-          price: item.price,
-          description: item.description,
-          gradientStart: item.gradientStart,
-          gradientEnd: item.gradientEnd,
-          initials: item.initials,
-          imageData: item.imageData || null,
-          bio: item.bio || null,
-          extraImages: item.extraImages || [],
+      const entry = sectionMap[item.section];
+      if (entry) {
+        entry.items.push({
+          name: item.name, price: item.price, description: item.description,
+          gradientStart: item.gradientStart, gradientEnd: item.gradientEnd,
+          initials: item.initials, imageData: item.imageData || null,
+          bio: item.bio || null, extraImages: item.extraImages || [],
         });
       }
     });
 
-    return merged.filter((s) => s.items.length > 0);
+    // Order sections
+    const allKeys = Object.keys(sectionMap);
+    const ordered = sectionOrder
+      ? [...sectionOrder.filter((t) => sectionMap[t]), ...allKeys.filter((t) => !sectionOrder.includes(t))]
+      : allKeys;
+
+    return ordered.map((t) => sectionMap[t]).filter(Boolean).filter((s) => s.items.length > 0);
   } catch {
     return defaultMenuSections;
   }
@@ -166,25 +173,21 @@ export default function RestaurantPage() {
     const load = async () => {
       if (supabase) {
         try {
-          const [sectionsRes, itemsRes] = await Promise.all([
+          const [sectionsRes, itemsRes, settingsRes] = await Promise.all([
             supabase.from('menu_sections').select('title').order('created_at'),
             supabase.from('menu_items').select('*').order('created_at'),
+            supabase.from('settings').select('key,value').in('key', ['section_order', 'section_renames']),
           ]);
           const customSections = sectionsRes.error ? [] : sectionsRes.data.map((s) => s.title);
           const customItems = itemsRes.error ? [] : itemsRes.data.map((i) => ({
-            id: i.id,
-            name: i.name,
-            price: i.price,
-            description: i.description,
-            bio: i.bio,
-            section: i.section,
-            imageData: i.image_data,
-            extraImages: i.extra_images || [],
-            gradientStart: i.gradient_start,
-            gradientEnd: i.gradient_end,
-            initials: i.initials,
+            id: i.id, name: i.name, price: i.price, description: i.description, bio: i.bio,
+            section: i.section, imageData: i.image_data, extraImages: i.extra_images || [],
+            gradientStart: i.gradient_start, gradientEnd: i.gradient_end, initials: i.initials,
           }));
-          setMenuSections(buildMenuSections(customSections, customItems));
+          const settings = settingsRes.error ? [] : (settingsRes.data || []);
+          const sectionOrder = settings.find((r) => r.key === 'section_order')?.value || null;
+          const sectionRenames = settings.find((r) => r.key === 'section_renames')?.value || {};
+          setMenuSections(buildMenuSections(customSections, customItems, sectionOrder, sectionRenames));
           return;
         } catch {
           // fall through to localStorage

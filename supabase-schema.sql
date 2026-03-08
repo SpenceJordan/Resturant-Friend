@@ -1,4 +1,3 @@
--- Run this in Supabase SQL Editor to create tables for the restaurant site.
 
 -- Orders (one row per checkout)
 create table if not exists public.orders (
@@ -114,3 +113,22 @@ create policy "Allow anon delete menu_sections" on public.menu_sections for dele
 create policy "Allow anon select menu_items" on public.menu_items for select using (true);
 create policy "Allow anon insert menu_items" on public.menu_items for insert with check (true);
 create policy "Allow anon delete menu_items" on public.menu_items for delete using (true);
+
+drop policy if exists "Allow anon update menu_items" on public.menu_items;
+create policy "Allow anon update menu_items" on public.menu_items for update using (true) with check (true);
+
+drop policy if exists "Allow anon update menu_sections" on public.menu_sections;
+create policy "Allow anon update menu_sections" on public.menu_sections for update using (true) with check (true);
+
+-- Key-value settings (section order, renames, etc.)
+create table if not exists public.settings (
+  key text primary key,
+  value jsonb
+);
+alter table public.settings enable row level security;
+drop policy if exists "Allow anon select settings" on public.settings;
+drop policy if exists "Allow anon insert settings" on public.settings;
+drop policy if exists "Allow anon update settings" on public.settings;
+create policy "Allow anon select settings" on public.settings for select using (true);
+create policy "Allow anon insert settings" on public.settings for insert with check (true);
+create policy "Allow anon update settings" on public.settings for update using (true) with check (true);

@@ -93,6 +93,10 @@ export default function AdminPage() {
 
   const [customSections, setCustomSections] = useState([]);
   const [customItems, setCustomItems] = useState([]);
+  const [sectionOrder, setSectionOrder] = useState([...DEFAULT_SECTIONS]);
+  const [sectionRenames, setSectionRenames] = useState({});
+  const [editingSectionKey, setEditingSectionKey] = useState(null);
+  const [sectionNameDraft, setSectionNameDraft] = useState('');
   const [activeTab, setActiveTab] = useState('items');
   const [newSection, setNewSection] = useState('');
   const [newItem, setNewItem] = useState(EMPTY_ITEM);
@@ -114,33 +118,50 @@ export default function AdminPage() {
 
     const loadMenuData = async () => {
       if (supabase) {
-        const [sectionsRes, itemsRes] = await Promise.all([
+        const [sectionsRes, itemsRes, settingsRes] = await Promise.all([
           supabase.from('menu_sections').select('title').order('created_at'),
           supabase.from('menu_items').select('*').order('created_at'),
+          supabase.from('settings').select('key,value').in('key', ['section_order', 'section_renames']),
         ]);
-        if (!sectionsRes.error) setCustomSections(sectionsRes.data.map((s) => s.title));
+        const customSecs = sectionsRes.error ? [] : sectionsRes.data.map((s) => s.title);
+        setCustomSections(customSecs);
         if (!itemsRes.error) {
           setCustomItems(itemsRes.data.map((i) => ({
-            id: i.id,
-            name: i.name,
-            price: i.price,
-            description: i.description,
-            bio: i.bio,
-            section: i.section,
-            imageData: i.image_data,
-            extraImages: i.extra_images || [],
-            gradientStart: i.gradient_start,
-            gradientEnd: i.gradient_end,
-            initials: i.initials,
+            id: i.id, name: i.name, price: i.price, description: i.description, bio: i.bio,
+            section: i.section, imageData: i.image_data, extraImages: i.extra_images || [],
+            gradientStart: i.gradient_start, gradientEnd: i.gradient_end, initials: i.initials,
           })));
+        }
+        if (!settingsRes.error && settingsRes.data) {
+          const orderRow = settingsRes.data.find((r) => r.key === 'section_order');
+          const renamesRow = settingsRes.data.find((r) => r.key === 'section_renames');
+          if (orderRow?.value) {
+            // Merge: ensure all customSecs are included
+            const saved = orderRow.value;
+            const merged = [...saved, ...customSecs.filter((s) => !saved.includes(s))];
+            setSectionOrder(merged);
+          } else {
+            setSectionOrder([...DEFAULT_SECTIONS, ...customSecs]);
+          }
+          if (renamesRow?.value) setSectionRenames(renamesRow.value);
+        } else {
+          setSectionOrder([...DEFAULT_SECTIONS, ...customSecs]);
         }
         return;
       }
       // Fallback: localStorage
       const sections = JSON.parse(localStorage.getItem('wfd_custom_sections') || '[]');
       const items = JSON.parse(localStorage.getItem('wfd_custom_items') || '[]');
+      const savedOrder = JSON.parse(localStorage.getItem('wfd_section_order') || 'null');
+      const savedRenames = JSON.parse(localStorage.getItem('wfd_section_renames') || '{}');
       setCustomSections(sections);
       setCustomItems(items);
+      setSectionRenames(savedRenames);
+      if (savedOrder) {
+        setSectionOrder([...savedOrder, ...sections.filter((s) => !savedOrder.includes(s))]);
+      } else {
+        setSectionOrder([...DEFAULT_SECTIONS, ...sections]);
+      }
     };
     loadMenuData();
 
@@ -271,6 +292,79 @@ export default function AdminPage() {
     showToast('Reset to default!');
   };
 
+  // ── Section config helpers ──
+  const saveSectionConfig = async (order, renames) => {
+    if (supabase) {
+      await Promise.all([
+        supabase.from('settings').upsert({ key: 'section_order', value: order }),
+        supabase.from('settings').upsert({ key: 'section_renames', value: renames }),
+      ]);
+    } else {
+      localStorage.setItem('wfd_section_order', JSON.stringify(order));
+      localStorage.setItem('wfd_section_renames', JSON.stringify(renames));
+    }
+  };
+
+  const moveSectionUp = (title) => {
+    const idx = sectionOrder.indexOf(title);
+    if (idx <= 0) return;
+    const updated = [...sectionOrder];
+    [updated[idx - 1], updated[idx]] = [updated[idx], updated[idx - 1]];
+    setSectionOrder(updated);
+    saveSectionConfig(updated, sectionRenames);
+  };
+
+  const moveSectionDown = (title) => {
+    const idx = sectionOrder.indexOf(title);
+    if (idx < 0 || idx >= sectionOrder.length - 1) return;
+    const updated = [...sectionOrder];
+    [updated[idx + 1], updated[idx]] = [updated[idx], updated[idx + 1]];
+    setSectionOrder(updated);
+    saveSectionConfig(updated, sectionRenames);
+  };
+
+  const startRenameSection = (title) => {
+    setEditingSectionKey(title);
+    setSectionNameDraft(sectionRenames[title] ?? title);
+  };
+
+  const saveRenameSection = async (originalTitle) => {
+    const newName = sectionNameDraft.trim();
+    if (!newName) return;
+    const updatedRenames = { ...sectionRenames, [originalTitle]: newName };
+    setSectionRenames(updatedRenames);
+    setEditingSectionKey(null);
+    // If it's a custom section, also update title in Supabase + update all items
+    if (customSections.includes(originalTitle)) {
+      const updatedSections = customSections.map((s) => s === originalTitle ? newName : s);
+      const updatedOrder = sectionOrder.map((s) => s === originalTitle ? newName : s);
+      const updatedItems = customItems.map((i) => i.section === originalTitle ? { ...i, section: newName } : i);
+      // Also remove old rename key, use new name as the key
+      const fixedRenames = { ...updatedRenames };
+      delete fixedRenames[originalTitle];
+      setCustomSections(updatedSections);
+      setSectionOrder(updatedOrder);
+      setCustomItems(updatedItems);
+      setSectionRenames(fixedRenames);
+      if (supabase) {
+        await Promise.all([
+          supabase.from('menu_sections').update({ title: newName }).eq('title', originalTitle),
+          supabase.from('menu_items').update({ section: newName }).eq('section', originalTitle),
+          supabase.from('settings').upsert({ key: 'section_order', value: updatedOrder }),
+          supabase.from('settings').upsert({ key: 'section_renames', value: fixedRenames }),
+        ]);
+      } else {
+        localStorage.setItem('wfd_custom_sections', JSON.stringify(updatedSections));
+        localStorage.setItem('wfd_section_order', JSON.stringify(updatedOrder));
+        localStorage.setItem('wfd_section_renames', JSON.stringify(fixedRenames));
+      }
+    } else {
+      // Default section — just save display name override
+      saveSectionConfig(sectionOrder, updatedRenames);
+    }
+    showToast('Section renamed!');
+  };
+
   // ── Orders helpers ──
   const deleteOrder = async (id) => {
     const updated = orders.filter((o) => o.id !== id);
@@ -311,28 +405,36 @@ export default function AdminPage() {
   const addSection = async () => {
     const trimmed = newSection.trim();
     if (!trimmed) return;
-    if (allSections.map((s) => s.toLowerCase()).includes(trimmed.toLowerCase())) {
+    if (sectionOrder.map((s) => s.toLowerCase()).includes(trimmed.toLowerCase())) {
       showToast('Section already exists!', 'error');
       return;
     }
-    const updated = [...customSections, trimmed];
-    setCustomSections(updated);
+    const updatedSections = [...customSections, trimmed];
+    const updatedOrder = [...sectionOrder, trimmed];
+    setCustomSections(updatedSections);
+    setSectionOrder(updatedOrder);
     setNewSection('');
     if (supabase) {
       await supabase.from('menu_sections').insert({ title: trimmed });
+      await supabase.from('settings').upsert({ key: 'section_order', value: updatedOrder });
     } else {
-      localStorage.setItem('wfd_custom_sections', JSON.stringify(updated));
+      localStorage.setItem('wfd_custom_sections', JSON.stringify(updatedSections));
+      localStorage.setItem('wfd_section_order', JSON.stringify(updatedOrder));
     }
     showToast(`"${trimmed}" section added!`);
   };
 
   const deleteSection = async (section) => {
-    const updated = customSections.filter((s) => s !== section);
-    setCustomSections(updated);
+    const updatedSections = customSections.filter((s) => s !== section);
+    const updatedOrder = sectionOrder.filter((s) => s !== section);
+    setCustomSections(updatedSections);
+    setSectionOrder(updatedOrder);
     if (supabase) {
       await supabase.from('menu_sections').delete().eq('title', section);
+      await supabase.from('settings').upsert({ key: 'section_order', value: updatedOrder });
     } else {
-      localStorage.setItem('wfd_custom_sections', JSON.stringify(updated));
+      localStorage.setItem('wfd_custom_sections', JSON.stringify(updatedSections));
+      localStorage.setItem('wfd_section_order', JSON.stringify(updatedOrder));
     }
     showToast('Section removed!');
   };
@@ -1169,40 +1271,58 @@ export default function AdminPage() {
               <input
                 type="text"
                 className="admin-input"
-                placeholder="New section name  e.g. Chef's Specials"
+                placeholder="New section name — e.g. Chef's Specials"
                 value={newSection}
                 onChange={(e) => setNewSection(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addSection()}
               />
-              <button className="section-add-btn" onClick={addSection}>
-                + Add Section
-              </button>
+              <button className="section-add-btn" onClick={addSection}>+ Add Section</button>
             </div>
 
-            <div className="list-heading">All Sections</div>
+            <div className="list-heading">All Sections — drag to reorder or use arrows</div>
             <div className="section-list">
-              {DEFAULT_SECTIONS.map((s) => (
-                <div key={s} className="section-row">
-                  <span className="sname">{s}</span>
-                  <span className="badge badge-default">Default</span>
-                </div>
-              ))}
-              {customSections.length === 0 && (
-                <div className="empty-state" style={{ padding: '20px' }}>
-                  No custom sections yet — add one above!
-                </div>
-              )}
-              {customSections.map((s) => (
-                <div key={s} className="section-row">
-                  <span className="sname">{s}</span>
-                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <span className="badge badge-custom">Custom</span>
-                    <button className="del-btn" onClick={() => deleteSection(s)}>
-                      Remove
-                    </button>
+              {sectionOrder.map((s, idx) => {
+                const isDefault = DEFAULT_SECTIONS.includes(s);
+                const displayName = sectionRenames[s] ?? s;
+                const isEditing = editingSectionKey === s;
+                return (
+                  <div key={s} className="section-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        {/* Up / Down arrows */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <button onClick={() => moveSectionUp(s)} disabled={idx === 0} style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'default' : 'pointer', color: idx === 0 ? '#ccc' : 'var(--red)', fontSize: '0.75rem', padding: '0 4px', lineHeight: 1 }}>▲</button>
+                          <button onClick={() => moveSectionDown(s)} disabled={idx === sectionOrder.length - 1} style={{ background: 'none', border: 'none', cursor: idx === sectionOrder.length - 1 ? 'default' : 'pointer', color: idx === sectionOrder.length - 1 ? '#ccc' : 'var(--red)', fontSize: '0.75rem', padding: '0 4px', lineHeight: 1 }}>▼</button>
+                        </div>
+                        <span className="sname">{displayName}</span>
+                        {sectionRenames[s] && <span style={{ fontSize: '0.72rem', color: '#aaa' }}>({s})</span>}
+                        <span className={`badge ${isDefault ? 'badge-default' : 'badge-custom'}`}>{isDefault ? 'Default' : 'Custom'}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button className="section-add-btn" style={{ padding: '5px 14px', fontSize: '0.85rem' }} onClick={() => isEditing ? setEditingSectionKey(null) : startRenameSection(s)}>
+                          {isEditing ? 'Cancel' : 'Rename'}
+                        </button>
+                        {!isDefault && (
+                          <button className="del-btn" onClick={() => deleteSection(s)}>Remove</button>
+                        )}
+                      </div>
+                    </div>
+                    {isEditing && (
+                      <div style={{ display: 'flex', gap: '10px', marginTop: '10px', paddingLeft: '36px' }}>
+                        <input
+                          className="admin-input"
+                          style={{ flex: 1, marginBottom: 0 }}
+                          value={sectionNameDraft}
+                          onChange={(e) => setSectionNameDraft(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && saveRenameSection(s)}
+                          autoFocus
+                        />
+                        <button className="admin-submit" style={{ margin: 0, padding: '8px 20px' }} onClick={() => saveRenameSection(s)}>Save</button>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
