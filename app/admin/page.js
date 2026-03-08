@@ -248,7 +248,7 @@ export default function AdminPage() {
       showToast('Name and valid price are required!', 'error');
       return;
     }
-    const updated = { ...itemOverrides, [key]: { name: editDraft.name.trim(), price, description: editDraft.description.trim(), bio: editDraft.bio?.trim() || null, extraImages: editDraft.extraImages || [] } };
+    const updated = { ...itemOverrides, [key]: { name: editDraft.name.trim(), price, description: editDraft.description.trim(), bio: editDraft.bio?.trim() || null, extraImages: editDraft.extraImages || [], imageData: editDraft.imageData || null } };
     setItemOverrides(updated);
     localStorage.setItem('wfd_item_overrides', JSON.stringify(updated));
     setEditingKey(null);
@@ -1354,6 +1354,28 @@ export default function AdminPage() {
                   <div className="admin-form-group" style={{ marginBottom: '10px' }}>
                     <label className="admin-label">Description</label>
                     <input className="admin-input" value={editDraft.description} onChange={(e) => setEditDraft((p) => ({ ...p, description: e.target.value }))} />
+                  </div>
+                  <div className="admin-form-group" style={{ marginBottom: '10px' }}>
+                    <label className="admin-label">Profile Photo</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                      {editDraft.imageData && (
+                        <div style={{ position: 'relative', width: '60px', height: '60px', flexShrink: 0 }}>
+                          <img src={editDraft.imageData} alt="" style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '50%', border: '2px solid var(--cream)' }} />
+                          <button type="button" onClick={() => setEditDraft((p) => ({ ...p, imageData: null }))} style={{ position: 'absolute', top: '-4px', right: '-4px', background: 'var(--red)', color: 'white', border: 'none', borderRadius: '50%', width: '18px', height: '18px', cursor: 'pointer', fontSize: '0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                        </div>
+                      )}
+                      <label style={{ cursor: 'pointer', background: 'var(--cream)', border: '1.5px solid #ddd', borderRadius: '6px', padding: '7px 16px', fontSize: '0.88rem', fontFamily: "'Crimson Text', serif", color: '#555' }}>
+                        {editDraft.imageData ? 'Change Photo' : '+ Upload Photo'}
+                        <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => {
+                          const file = e.target.files[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = (ev) => setEditDraft((p) => ({ ...p, imageData: ev.target.result }));
+                          reader.readAsDataURL(file);
+                          e.target.value = '';
+                        }} />
+                      </label>
+                    </div>
                   </div>
                   <div className="admin-form-group" style={{ marginBottom: '10px' }}>
                     <label className="admin-label">Bio</label>
