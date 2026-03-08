@@ -109,12 +109,40 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!loggedIn) return;
-    const sections = JSON.parse(localStorage.getItem('wfd_custom_sections') || '[]');
-    const items = JSON.parse(localStorage.getItem('wfd_custom_items') || '[]');
     const overrides = JSON.parse(localStorage.getItem('wfd_item_overrides') || '{}');
-    setCustomSections(sections);
-    setCustomItems(items);
     setItemOverrides(overrides);
+
+    const loadMenuData = async () => {
+      if (supabase) {
+        const [sectionsRes, itemsRes] = await Promise.all([
+          supabase.from('menu_sections').select('title').order('created_at'),
+          supabase.from('menu_items').select('*').order('created_at'),
+        ]);
+        if (!sectionsRes.error) setCustomSections(sectionsRes.data.map((s) => s.title));
+        if (!itemsRes.error) {
+          setCustomItems(itemsRes.data.map((i) => ({
+            id: i.id,
+            name: i.name,
+            price: i.price,
+            description: i.description,
+            bio: i.bio,
+            section: i.section,
+            imageData: i.image_data,
+            extraImages: i.extra_images || [],
+            gradientStart: i.gradient_start,
+            gradientEnd: i.gradient_end,
+            initials: i.initials,
+          })));
+        }
+        return;
+      }
+      // Fallback: localStorage
+      const sections = JSON.parse(localStorage.getItem('wfd_custom_sections') || '[]');
+      const items = JSON.parse(localStorage.getItem('wfd_custom_items') || '[]');
+      setCustomSections(sections);
+      setCustomItems(items);
+    };
+    loadMenuData();
 
     // Load orders: Supabase first, fallback to localStorage
     const loadOrders = async () => {
@@ -178,11 +206,18 @@ export default function AdminPage() {
   };
 
   // ── Edit Menu helpers ──
-  const startEdit = (sectionTitle, item) => {
-    const key = `${sectionTitle}:${item.name}`;
-    const ov = itemOverrides[key];
+  const startEdit = (sectionTitle, item, isCustom = false) => {
+    const key = isCustom ? `custom:${item.id}` : `${sectionTitle}:${item.name}`;
+    const ov = isCustom ? null : itemOverrides[key];
     setEditingKey(key);
-    setEditDraft({ name: ov?.name ?? item.name, price: ov?.price ?? item.price, description: ov?.description ?? item.description, bio: ov?.bio ?? item.bio ?? '', extraImages: ov?.extraImages ?? item.extraImages ?? [] });
+    setEditDraft({
+      name: ov?.name ?? item.name,
+      price: ov?.price ?? item.price,
+      description: ov?.description ?? item.description,
+      bio: ov?.bio ?? item.bio ?? '',
+      extraImages: ov?.extraImages ?? item.extraImages ?? [],
+      imageData: item.imageData ?? null,
+    });
   };
 
   const saveEdit = (sectionTitle, originalName) => {
@@ -195,6 +230,34 @@ export default function AdminPage() {
     const updated = { ...itemOverrides, [key]: { name: editDraft.name.trim(), price, description: editDraft.description.trim(), bio: editDraft.bio?.trim() || null, extraImages: editDraft.extraImages || [] } };
     setItemOverrides(updated);
     localStorage.setItem('wfd_item_overrides', JSON.stringify(updated));
+    setEditingKey(null);
+    showToast('Item updated!');
+  };
+
+  const saveCustomItemEdit = async (itemId) => {
+    const price = parseFloat(editDraft.price);
+    if (!editDraft.name.trim() || isNaN(price) || price <= 0) {
+      showToast('Name and valid price are required!', 'error');
+      return;
+    }
+    const updated = customItems.map((i) =>
+      i.id === itemId
+        ? { ...i, name: editDraft.name.trim(), price, description: editDraft.description.trim(), bio: editDraft.bio?.trim() || null, extraImages: editDraft.extraImages || [], imageData: editDraft.imageData ?? i.imageData }
+        : i
+    );
+    setCustomItems(updated);
+    if (supabase) {
+      await supabase.from('menu_items').update({
+        name: editDraft.name.trim(),
+        price,
+        description: editDraft.description.trim(),
+        bio: editDraft.bio?.trim() || null,
+        extra_images: editDraft.extraImages || [],
+        image_data: editDraft.imageData ?? updated.find(i => i.id === itemId)?.imageData,
+      }).eq('id', itemId);
+    } else {
+      localStorage.setItem('wfd_custom_items', JSON.stringify(updated));
+    }
     setEditingKey(null);
     showToast('Item updated!');
   };
@@ -245,7 +308,7 @@ export default function AdminPage() {
     );
   };
 
-  const addSection = () => {
+  const addSection = async () => {
     const trimmed = newSection.trim();
     if (!trimmed) return;
     if (allSections.map((s) => s.toLowerCase()).includes(trimmed.toLowerCase())) {
@@ -254,15 +317,23 @@ export default function AdminPage() {
     }
     const updated = [...customSections, trimmed];
     setCustomSections(updated);
-    localStorage.setItem('wfd_custom_sections', JSON.stringify(updated));
     setNewSection('');
+    if (supabase) {
+      await supabase.from('menu_sections').insert({ title: trimmed });
+    } else {
+      localStorage.setItem('wfd_custom_sections', JSON.stringify(updated));
+    }
     showToast(`"${trimmed}" section added!`);
   };
 
-  const deleteSection = (section) => {
+  const deleteSection = async (section) => {
     const updated = customSections.filter((s) => s !== section);
     setCustomSections(updated);
-    localStorage.setItem('wfd_custom_sections', JSON.stringify(updated));
+    if (supabase) {
+      await supabase.from('menu_sections').delete().eq('title', section);
+    } else {
+      localStorage.setItem('wfd_custom_sections', JSON.stringify(updated));
+    }
     showToast('Section removed!');
   };
 
@@ -313,7 +384,7 @@ export default function AdminPage() {
     e.target.value = '';
   };
 
-  const addItem = () => {
+  const addItem = async () => {
     if (!newItem.name.trim() || !newItem.price || !newItem.section) {
       showToast('Name, price, and category are required!', 'error');
       return;
@@ -339,7 +410,23 @@ export default function AdminPage() {
     };
     const updated = [...customItems, item];
     setCustomItems(updated);
-    localStorage.setItem('wfd_custom_items', JSON.stringify(updated));
+    if (supabase) {
+      await supabase.from('menu_items').insert({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        description: item.description,
+        bio: item.bio,
+        section: item.section,
+        image_data: item.imageData,
+        extra_images: item.extraImages,
+        gradient_start: item.gradientStart,
+        gradient_end: item.gradientEnd,
+        initials: item.initials,
+      });
+    } else {
+      localStorage.setItem('wfd_custom_items', JSON.stringify(updated));
+    }
     const keptSection = newItem.section;
     setNewItem({ ...EMPTY_ITEM, section: keptSection });
     setPreview(null);
@@ -347,10 +434,14 @@ export default function AdminPage() {
     showToast(`${item.name} added to the menu!`);
   };
 
-  const deleteItem = (id) => {
+  const deleteItem = async (id) => {
     const updated = customItems.filter((item) => item.id !== id);
     setCustomItems(updated);
-    localStorage.setItem('wfd_custom_items', JSON.stringify(updated));
+    if (supabase) {
+      await supabase.from('menu_items').delete().eq('id', id);
+    } else {
+      localStorage.setItem('wfd_custom_items', JSON.stringify(updated));
+    }
     showToast('Entry removed!');
   };
 
@@ -893,16 +984,10 @@ export default function AdminPage() {
             Sections
           </button>
           <button
-            className={`admin-tab${activeTab === 'manage' ? ' active' : ''}`}
-            onClick={() => setActiveTab('manage')}
+            className={`admin-tab${activeTab === 'allitems' ? ' active' : ''}`}
+            onClick={() => setActiveTab('allitems')}
           >
-            All Entries ({customItems.length})
-          </button>
-          <button
-            className={`admin-tab${activeTab === 'edit' ? ' active' : ''}`}
-            onClick={() => setActiveTab('edit')}
-          >
-            Edit Menu
+            All Items
           </button>
           <button
             className={`admin-tab${activeTab === 'receipts' ? ' active' : ''}`}
@@ -1122,140 +1207,136 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* ── ALL ENTRIES TAB ── */}
-        {activeTab === 'manage' && (
+        {/* ── ALL ITEMS TAB (default + custom, unified edit) ── */}
+        {activeTab === 'allitems' && (
           <div className="admin-card">
-            <h2 className="admin-card-title">Custom Entries ({customItems.length})</h2>
-            {customItems.length === 0 ? (
-              <div className="empty-state">
-                No custom entries yet — add people from the &#34;Add Person&#34; tab!
-              </div>
-            ) : (
-              <div className="items-list">
-                {customItems.map((item) => (
-                  <div key={item.id} className="item-row">
-                    <div className="item-avatar">
-                      {item.imageData ? (
-                        <img src={item.imageData} alt={item.name} />
-                      ) : (
-                        <div
-                          className="item-avatar-placeholder"
-                          style={{
-                            background: `linear-gradient(135deg, ${item.gradientStart}, ${item.gradientEnd})`,
-                          }}
-                        >
-                          {item.initials}
-                        </div>
-                      )}
-                    </div>
-                    <div className="item-info">
-                      <div className="item-iname">{item.name}</div>
-                      <div className="item-meta">
-                        <span className="iprice">${formatPrice(item.price)}</span>
-                        <span>{item.section}</span>
-                        {item.description && (
-                          <span className="idesc">{item.description}</span>
-                        )}
-                      </div>
-                    </div>
-                    <button className="del-btn" onClick={() => deleteItem(item.id)}>
-                      Remove
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+            <h2 className="admin-card-title">All Items</h2>
+            {(() => {
+              // Build a unified list: all section titles, each with default + custom items
+              const sectionTitles = [
+                ...DEFAULT_MENU.map((s) => s.title),
+                ...customSections.filter((t) => !DEFAULT_MENU.find((s) => s.title === t)),
+              ];
 
-        {/* ── EDIT MENU TAB ── */}
-        {activeTab === 'edit' && (
-          <div className="admin-card">
-            <h2 className="admin-card-title">Edit Main Dishes</h2>
-            {DEFAULT_MENU.map((section) => (
-              <div key={section.title} style={{ marginBottom: '36px' }}>
-                <div className="list-heading">{section.title}</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {section.items.map((item) => {
-                    const key = `${section.title}:${item.name}`;
-                    const ov = itemOverrides[key];
-                    const isEditing = editingKey === key;
-                    const displayName = ov?.name ?? item.name;
-                    const displayPrice = ov?.price ?? item.price;
-                    const displayDesc = ov?.description ?? item.description;
-                    return (
-                      <div key={item.name} className="section-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '12px' }}>
-                        {!isEditing ? (
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
-                            <div>
-                              <span className="sname">{displayName}</span>
-                              {ov && <span className="badge badge-custom" style={{ marginLeft: '8px' }}>Edited</span>}
-                              <div style={{ fontSize: '0.85rem', color: '#888', marginTop: '3px' }}>
-                                ${displayPrice % 1 === 0 ? displayPrice : displayPrice.toFixed(2)} — {displayDesc}
-                              </div>
-                            </div>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              {ov && (
-                                <button className="del-btn" style={{ borderColor: '#aaa', color: '#aaa' }} onClick={() => resetOverride(section.title, item.name)}>
-                                  Reset
-                                </button>
-                              )}
-                              <button className="section-add-btn" style={{ padding: '6px 18px', fontSize: '0.9rem' }} onClick={() => startEdit(section.title, item)}>
-                                Edit
-                              </button>
-                            </div>
+              // Shared inline edit form
+              const EditForm = ({ onSave, onCancel }) => (
+                <div style={{ marginTop: '12px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '12px', marginBottom: '10px' }}>
+                    <div className="admin-form-group" style={{ marginBottom: 0 }}>
+                      <label className="admin-label">Name</label>
+                      <input className="admin-input" value={editDraft.name} onChange={(e) => setEditDraft((p) => ({ ...p, name: e.target.value }))} />
+                    </div>
+                    <div className="admin-form-group" style={{ marginBottom: 0, minWidth: '110px' }}>
+                      <label className="admin-label">Price ($)</label>
+                      <input className="admin-input" type="number" min="0" step="0.01" value={editDraft.price} onChange={(e) => setEditDraft((p) => ({ ...p, price: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div className="admin-form-group" style={{ marginBottom: '10px' }}>
+                    <label className="admin-label">Description</label>
+                    <input className="admin-input" value={editDraft.description} onChange={(e) => setEditDraft((p) => ({ ...p, description: e.target.value }))} />
+                  </div>
+                  <div className="admin-form-group" style={{ marginBottom: '10px' }}>
+                    <label className="admin-label">Bio</label>
+                    <textarea className="admin-input" rows={3} value={editDraft.bio || ''} onChange={(e) => setEditDraft((p) => ({ ...p, bio: e.target.value }))} placeholder="Profile bio..." style={{ resize: 'vertical', lineHeight: '1.6' }} />
+                  </div>
+                  <div className="admin-form-group" style={{ marginBottom: '12px' }}>
+                    <label className="admin-label">Gallery Photos</label>
+                    {(editDraft.extraImages || []).length > 0 && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(60px,1fr))', gap: '6px', marginBottom: '8px' }}>
+                        {editDraft.extraImages.map((img, i) => (
+                          <div key={i} style={{ position: 'relative' }}>
+                            <img src={img} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: '4px' }} />
+                            <button type="button" onClick={() => setEditDraft((p) => ({ ...p, extraImages: p.extraImages.filter((_, idx) => idx !== i) }))} style={{ position: 'absolute', top: '2px', right: '2px', background: 'rgba(200,68,68,0.85)', color: 'white', border: 'none', borderRadius: '50%', width: '18px', height: '18px', cursor: 'pointer', fontSize: '0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
                           </div>
-                        ) : (
-                          <div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '12px', marginBottom: '10px' }}>
-                              <div className="admin-form-group" style={{ marginBottom: 0 }}>
-                                <label className="admin-label">Name</label>
-                                <input className="admin-input" value={editDraft.name} onChange={(e) => setEditDraft((p) => ({ ...p, name: e.target.value }))} />
-                              </div>
-                              <div className="admin-form-group" style={{ marginBottom: 0, minWidth: '110px' }}>
-                                <label className="admin-label">Price ($)</label>
-                                <input className="admin-input" type="number" min="0" step="0.01" value={editDraft.price} onChange={(e) => setEditDraft((p) => ({ ...p, price: e.target.value }))} />
-                              </div>
-                            </div>
-                            <div className="admin-form-group" style={{ marginBottom: '10px' }}>
-                              <label className="admin-label">Description</label>
-                              <input className="admin-input" value={editDraft.description} onChange={(e) => setEditDraft((p) => ({ ...p, description: e.target.value }))} />
-                            </div>
-                            <div className="admin-form-group" style={{ marginBottom: '10px' }}>
-                              <label className="admin-label">Bio</label>
-                              <textarea className="admin-input" rows={3} value={editDraft.bio || ''} onChange={(e) => setEditDraft((p) => ({ ...p, bio: e.target.value }))} placeholder="Profile bio..." style={{ resize: 'vertical', lineHeight: '1.6' }} />
-                            </div>
-                            <div className="admin-form-group" style={{ marginBottom: '12px' }}>
-                              <label className="admin-label">Gallery</label>
-                              {(editDraft.extraImages || []).length > 0 && (
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(60px,1fr))', gap: '6px', marginBottom: '8px' }}>
-                                  {editDraft.extraImages.map((img, i) => (
-                                    <div key={i} style={{ position: 'relative' }}>
-                                      <img src={img} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: '4px' }} />
-                                      <button type="button" onClick={() => setEditDraft((p) => ({ ...p, extraImages: p.extraImages.filter((_, idx) => idx !== i) }))} style={{ position: 'absolute', top: '2px', right: '2px', background: 'rgba(200,68,68,0.85)', color: 'white', border: 'none', borderRadius: '50%', width: '18px', height: '18px', cursor: 'pointer', fontSize: '0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                              <button type="button" className="random-btn" onClick={() => editGalleryInputRef.current?.click()}>+ Add Photos</button>
-                              <input ref={editGalleryInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleEditGalleryUpload} />
-                            </div>
-                            <div style={{ display: 'flex', gap: '10px' }}>
-                              <button className="admin-submit" style={{ margin: 0, flex: 1, padding: '10px' }} onClick={() => saveEdit(section.title, item.name)}>
-                                Save
-                              </button>
-                              <button className="del-btn" style={{ flex: 1 }} onClick={() => setEditingKey(null)}>
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        )}
+                        ))}
                       </div>
-                    );
-                  })}
+                    )}
+                    <button type="button" className="random-btn" onClick={() => editGalleryInputRef.current?.click()}>+ Add Photos</button>
+                    <input ref={editGalleryInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleEditGalleryUpload} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button className="admin-submit" style={{ margin: 0, flex: 1, padding: '10px' }} onClick={onSave}>Save</button>
+                    <button className="del-btn" style={{ flex: 1 }} onClick={onCancel}>Cancel</button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+
+              return sectionTitles.map((sectionTitle) => {
+                const defaultSection = DEFAULT_MENU.find((s) => s.title === sectionTitle);
+                const defaultItems = defaultSection ? defaultSection.items : [];
+                const sectionCustomItems = customItems.filter((i) => i.section === sectionTitle);
+                if (defaultItems.length === 0 && sectionCustomItems.length === 0) return null;
+
+                return (
+                  <div key={sectionTitle} style={{ marginBottom: '36px' }}>
+                    <div className="list-heading">{sectionTitle}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+
+                      {/* Default items */}
+                      {defaultItems.map((item) => {
+                        const key = `${sectionTitle}:${item.name}`;
+                        const ov = itemOverrides[key];
+                        const isEditing = editingKey === key;
+                        const displayName = ov?.name ?? item.name;
+                        const displayPrice = ov?.price ?? item.price;
+                        const displayDesc = ov?.description ?? item.description;
+                        return (
+                          <div key={item.name} className="section-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                              <div>
+                                <span className="sname">{displayName}</span>
+                                {ov && <span className="badge badge-custom" style={{ marginLeft: '8px' }}>Edited</span>}
+                                <div style={{ fontSize: '0.85rem', color: '#888', marginTop: '3px' }}>
+                                  ${displayPrice % 1 === 0 ? displayPrice : displayPrice.toFixed(2)} — {displayDesc}
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                {ov && <button className="del-btn" style={{ borderColor: '#aaa', color: '#aaa' }} onClick={() => resetOverride(sectionTitle, item.name)}>Reset</button>}
+                                <button className="section-add-btn" style={{ padding: '6px 18px', fontSize: '0.9rem' }} onClick={() => isEditing ? setEditingKey(null) : startEdit(sectionTitle, item, false)}>
+                                  {isEditing ? 'Close' : 'Edit'}
+                                </button>
+                              </div>
+                            </div>
+                            {isEditing && <EditForm onSave={() => saveEdit(sectionTitle, item.name)} onCancel={() => setEditingKey(null)} />}
+                          </div>
+                        );
+                      })}
+
+                      {/* Custom items */}
+                      {sectionCustomItems.map((item) => {
+                        const key = `custom:${item.id}`;
+                        const isEditing = editingKey === key;
+                        return (
+                          <div key={item.id} className="section-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div className="item-avatar" style={{ width: '40px', height: '40px', flexShrink: 0 }}>
+                                  {item.imageData ? <img src={item.imageData} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : <div className="item-avatar-placeholder" style={{ background: `linear-gradient(135deg, ${item.gradientStart}, ${item.gradientEnd})`, width: '100%', height: '100%', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', color: 'white', fontWeight: 700 }}>{item.initials}</div>}
+                                </div>
+                                <div>
+                                  <span className="sname">{item.name}</span>
+                                  <span className="badge badge-custom" style={{ marginLeft: '8px' }}>Custom</span>
+                                  <div style={{ fontSize: '0.85rem', color: '#888', marginTop: '3px' }}>
+                                    ${formatPrice(item.price)} — {item.description}
+                                  </div>
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <button className="del-btn" onClick={() => deleteItem(item.id)}>Remove</button>
+                                <button className="section-add-btn" style={{ padding: '6px 18px', fontSize: '0.9rem' }} onClick={() => isEditing ? setEditingKey(null) : startEdit(sectionTitle, item, true)}>
+                                  {isEditing ? 'Close' : 'Edit'}
+                                </button>
+                              </div>
+                            </div>
+                            {isEditing && <EditForm onSave={() => saveCustomItemEdit(item.id)} onCancel={() => setEditingKey(null)} />}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              });
+            })()}
           </div>
         )}
 

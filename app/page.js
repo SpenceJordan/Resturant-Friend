@@ -60,11 +60,11 @@ const defaultMenuSections = [
 ];
 
 // Merge default sections with custom ones stored in localStorage
-function buildMenuSections() {
+function buildMenuSections(customSections, customItems) {
   if (typeof window === 'undefined') return defaultMenuSections;
   try {
-    const customSections = JSON.parse(localStorage.getItem('wfd_custom_sections') || '[]');
-    const customItems = JSON.parse(localStorage.getItem('wfd_custom_items') || '[]');
+    if (!customSections) customSections = JSON.parse(localStorage.getItem('wfd_custom_sections') || '[]');
+    if (!customItems) customItems = JSON.parse(localStorage.getItem('wfd_custom_items') || '[]');
 
     const overrides = JSON.parse(localStorage.getItem('wfd_item_overrides') || '{}');
 
@@ -161,9 +161,38 @@ export default function RestaurantPage() {
     setLightboxImg(null);
   };
 
-  // Load custom items/sections from localStorage on mount
+  // Load custom items/sections — Supabase if connected, else localStorage
   useEffect(() => {
-    setMenuSections(buildMenuSections());
+    const load = async () => {
+      if (supabase) {
+        try {
+          const [sectionsRes, itemsRes] = await Promise.all([
+            supabase.from('menu_sections').select('title').order('created_at'),
+            supabase.from('menu_items').select('*').order('created_at'),
+          ]);
+          const customSections = sectionsRes.error ? [] : sectionsRes.data.map((s) => s.title);
+          const customItems = itemsRes.error ? [] : itemsRes.data.map((i) => ({
+            id: i.id,
+            name: i.name,
+            price: i.price,
+            description: i.description,
+            bio: i.bio,
+            section: i.section,
+            imageData: i.image_data,
+            extraImages: i.extra_images || [],
+            gradientStart: i.gradient_start,
+            gradientEnd: i.gradient_end,
+            initials: i.initials,
+          }));
+          setMenuSections(buildMenuSections(customSections, customItems));
+          return;
+        } catch {
+          // fall through to localStorage
+        }
+      }
+      setMenuSections(buildMenuSections());
+    };
+    load();
   }, []);
 
   const showToast = (message) => {

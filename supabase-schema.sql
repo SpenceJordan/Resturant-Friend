@@ -30,10 +30,35 @@ create table if not exists public.menu_images (
   created_at timestamptz default now()
 );
 
+-- Custom menu sections added by admin
+create table if not exists public.menu_sections (
+  id uuid primary key default gen_random_uuid(),
+  title text not null unique,
+  created_at timestamptz default now()
+);
+
+-- Custom menu items added by admin
+create table if not exists public.menu_items (
+  id text primary key,
+  name text not null,
+  price numeric not null,
+  description text,
+  bio text,
+  section text not null,
+  image_data text,
+  extra_images jsonb default '[]',
+  gradient_start text,
+  gradient_end text,
+  initials text,
+  created_at timestamptz default now()
+);
+
 -- Enable RLS on all tables
 alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
 alter table public.menu_images enable row level security;
+alter table public.menu_sections enable row level security;
+alter table public.menu_items enable row level security;
 
 -- Drop existing policies so this script is safe to re-run
 drop policy if exists "Allow anonymous select on orders" on public.orders;
@@ -73,3 +98,19 @@ create policy "Allow anonymous update menu_images"
   on public.menu_images for update
   using (true)
   with check (true);
+
+-- Drop new policies so script is re-runnable
+drop policy if exists "Allow anon select menu_sections" on public.menu_sections;
+drop policy if exists "Allow anon insert menu_sections" on public.menu_sections;
+drop policy if exists "Allow anon delete menu_sections" on public.menu_sections;
+drop policy if exists "Allow anon select menu_items" on public.menu_items;
+drop policy if exists "Allow anon insert menu_items" on public.menu_items;
+drop policy if exists "Allow anon delete menu_items" on public.menu_items;
+
+create policy "Allow anon select menu_sections" on public.menu_sections for select using (true);
+create policy "Allow anon insert menu_sections" on public.menu_sections for insert with check (true);
+create policy "Allow anon delete menu_sections" on public.menu_sections for delete using (true);
+
+create policy "Allow anon select menu_items" on public.menu_items for select using (true);
+create policy "Allow anon insert menu_items" on public.menu_items for insert with check (true);
+create policy "Allow anon delete menu_items" on public.menu_items for delete using (true);
