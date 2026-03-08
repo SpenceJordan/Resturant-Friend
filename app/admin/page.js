@@ -62,8 +62,10 @@ const EMPTY_ITEM = {
   name: '',
   price: '',
   description: '',
+  bio: '',
   section: DEFAULT_SECTIONS[0],
   imageData: null,
+  extraImages: [],
   gradientStart: '#C84444',
   gradientEnd: '#8B3030',
 };
@@ -92,6 +94,8 @@ export default function AdminPage() {
   const [preview, setPreview] = useState(null);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const fileInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
+  const editGalleryInputRef = useRef(null);
   const toastTimerRef = useRef(null);
 
   useEffect(() => {
@@ -134,7 +138,7 @@ export default function AdminPage() {
     const key = `${sectionTitle}:${item.name}`;
     const ov = itemOverrides[key];
     setEditingKey(key);
-    setEditDraft({ name: ov?.name ?? item.name, price: ov?.price ?? item.price, description: ov?.description ?? item.description });
+    setEditDraft({ name: ov?.name ?? item.name, price: ov?.price ?? item.price, description: ov?.description ?? item.description, bio: ov?.bio ?? item.bio ?? '', extraImages: ov?.extraImages ?? item.extraImages ?? [] });
   };
 
   const saveEdit = (sectionTitle, originalName) => {
@@ -144,7 +148,7 @@ export default function AdminPage() {
       showToast('Name and valid price are required!', 'error');
       return;
     }
-    const updated = { ...itemOverrides, [key]: { name: editDraft.name.trim(), price, description: editDraft.description.trim() } };
+    const updated = { ...itemOverrides, [key]: { name: editDraft.name.trim(), price, description: editDraft.description.trim(), bio: editDraft.bio?.trim() || null, extraImages: editDraft.extraImages || [] } };
     setItemOverrides(updated);
     localStorage.setItem('wfd_item_overrides', JSON.stringify(updated));
     setEditingKey(null);
@@ -228,6 +232,33 @@ export default function AdminPage() {
     setNewItem((prev) => ({ ...prev, gradientStart: preset.start, gradientEnd: preset.end }));
   };
 
+  const readFilesAsBase64 = (files) =>
+    Promise.all(
+      Array.from(files).map(
+        (file) =>
+          new Promise((resolve) => {
+            if (file.size > 5 * 1024 * 1024) { resolve(null); return; }
+            const reader = new FileReader();
+            reader.onload = (ev) => resolve(ev.target.result);
+            reader.readAsDataURL(file);
+          })
+      )
+    ).then((results) => results.filter(Boolean));
+
+  const handleGalleryUpload = async (e) => {
+    const images = await readFilesAsBase64(e.target.files);
+    if (!images.length) return;
+    setNewItem((prev) => ({ ...prev, extraImages: [...prev.extraImages, ...images] }));
+    e.target.value = '';
+  };
+
+  const handleEditGalleryUpload = async (e) => {
+    const images = await readFilesAsBase64(e.target.files);
+    if (!images.length) return;
+    setEditDraft((prev) => ({ ...prev, extraImages: [...(prev.extraImages || []), ...images] }));
+    e.target.value = '';
+  };
+
   const addItem = () => {
     if (!newItem.name.trim() || !newItem.price || !newItem.section) {
       showToast('Name, price, and category are required!', 'error');
@@ -244,8 +275,10 @@ export default function AdminPage() {
       name: newItem.name.trim(),
       price,
       description: newItem.description.trim() || 'A unique selection',
+      bio: newItem.bio.trim() || null,
       section: newItem.section,
       imageData: newItem.imageData || null,
+      extraImages: newItem.extraImages || [],
       gradientStart: newItem.gradientStart,
       gradientEnd: newItem.gradientEnd,
       initials,
@@ -926,7 +959,7 @@ export default function AdminPage() {
                 </div>
 
                 <div className="admin-form-group">
-                  <label className="admin-label">Description</label>
+                  <label className="admin-label">Description <span style={{fontWeight:400,color:'#aaa'}}>(short tagline)</span></label>
                   <input
                     type="text"
                     className="admin-input"
@@ -936,6 +969,40 @@ export default function AdminPage() {
                       setNewItem((prev) => ({ ...prev, description: e.target.value }))
                     }
                   />
+                </div>
+
+                <div className="admin-form-group">
+                  <label className="admin-label">Bio <span style={{fontWeight:400,color:'#aaa'}}>(shown on profile)</span></label>
+                  <textarea
+                    className="admin-input"
+                    rows={4}
+                    placeholder="Write a longer bio that appears when someone clicks View Profile..."
+                    value={newItem.bio}
+                    onChange={(e) => setNewItem((prev) => ({ ...prev, bio: e.target.value }))}
+                    style={{ resize: 'vertical', lineHeight: '1.6' }}
+                  />
+                </div>
+
+                <div className="admin-form-group">
+                  <label className="admin-label">Gallery Photos</label>
+                  {newItem.extraImages.length > 0 && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px,1fr))', gap: '8px', marginBottom: '10px' }}>
+                      {newItem.extraImages.map((img, i) => (
+                        <div key={i} style={{ position: 'relative' }}>
+                          <img src={img} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: '4px' }} />
+                          <button
+                            type="button"
+                            onClick={() => setNewItem((prev) => ({ ...prev, extraImages: prev.extraImages.filter((_, idx) => idx !== i) }))}
+                            style={{ position: 'absolute', top: '2px', right: '2px', background: 'rgba(200,68,68,0.85)', color: 'white', border: 'none', borderRadius: '50%', width: '20px', height: '20px', cursor: 'pointer', fontSize: '0.7rem', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          >×</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <button type="button" className="random-btn" style={{ width: '100%' }} onClick={() => galleryInputRef.current?.click()}>
+                    + Add Photos
+                  </button>
+                  <input ref={galleryInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleGalleryUpload} />
                 </div>
 
                 <button className="admin-submit" onClick={addItem}>
@@ -1088,9 +1155,28 @@ export default function AdminPage() {
                                 <input className="admin-input" type="number" min="0" step="0.01" value={editDraft.price} onChange={(e) => setEditDraft((p) => ({ ...p, price: e.target.value }))} />
                               </div>
                             </div>
-                            <div className="admin-form-group" style={{ marginBottom: '12px' }}>
+                            <div className="admin-form-group" style={{ marginBottom: '10px' }}>
                               <label className="admin-label">Description</label>
                               <input className="admin-input" value={editDraft.description} onChange={(e) => setEditDraft((p) => ({ ...p, description: e.target.value }))} />
+                            </div>
+                            <div className="admin-form-group" style={{ marginBottom: '10px' }}>
+                              <label className="admin-label">Bio</label>
+                              <textarea className="admin-input" rows={3} value={editDraft.bio || ''} onChange={(e) => setEditDraft((p) => ({ ...p, bio: e.target.value }))} placeholder="Profile bio..." style={{ resize: 'vertical', lineHeight: '1.6' }} />
+                            </div>
+                            <div className="admin-form-group" style={{ marginBottom: '12px' }}>
+                              <label className="admin-label">Gallery</label>
+                              {(editDraft.extraImages || []).length > 0 && (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(60px,1fr))', gap: '6px', marginBottom: '8px' }}>
+                                  {editDraft.extraImages.map((img, i) => (
+                                    <div key={i} style={{ position: 'relative' }}>
+                                      <img src={img} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: '4px' }} />
+                                      <button type="button" onClick={() => setEditDraft((p) => ({ ...p, extraImages: p.extraImages.filter((_, idx) => idx !== i) }))} style={{ position: 'absolute', top: '2px', right: '2px', background: 'rgba(200,68,68,0.85)', color: 'white', border: 'none', borderRadius: '50%', width: '18px', height: '18px', cursor: 'pointer', fontSize: '0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              <button type="button" className="random-btn" onClick={() => editGalleryInputRef.current?.click()}>+ Add Photos</button>
+                              <input ref={editGalleryInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleEditGalleryUpload} />
                             </div>
                             <div style={{ display: 'flex', gap: '10px' }}>
                               <button className="admin-submit" style={{ margin: 0, flex: 1, padding: '10px' }} onClick={() => saveEdit(section.title, item.name)}>

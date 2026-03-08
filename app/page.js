@@ -96,6 +96,8 @@ function buildMenuSections() {
           gradientEnd: item.gradientEnd,
           initials: item.initials,
           imageData: item.imageData || null,
+          bio: item.bio || null,
+          extraImages: item.extraImages || [],
         });
       }
     });
@@ -125,8 +127,39 @@ export default function RestaurantPage() {
   const [justAdded, setJustAdded] = useState(new Set());
   const [receiptData, setReceiptData] = useState(null);
   const [imgErrors, setImgErrors] = useState(new Set());
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [lightboxImg, setLightboxImg] = useState(null);
+  const [profileList, setProfileList] = useState([]);
+  const [profileIndex, setProfileIndex] = useState(0);
+  const [galleryIndex, setGalleryIndex] = useState(0);
 
   const toastTimerRef = useRef(null);
+
+  const openProfile = (item) => {
+    const allItems = menuSections.flatMap((s) => s.items);
+    const idx = allItems.findIndex((i) => i.name === item.name);
+    setProfileList(allItems);
+    setProfileIndex(idx >= 0 ? idx : 0);
+    setSelectedItem(item);
+    setGalleryIndex(0);
+    setLightboxImg(null);
+  };
+
+  const goProfilePrev = () => {
+    const newIdx = (profileIndex - 1 + profileList.length) % profileList.length;
+    setProfileIndex(newIdx);
+    setSelectedItem(profileList[newIdx]);
+    setGalleryIndex(0);
+    setLightboxImg(null);
+  };
+
+  const goProfileNext = () => {
+    const newIdx = (profileIndex + 1) % profileList.length;
+    setProfileIndex(newIdx);
+    setSelectedItem(profileList[newIdx]);
+    setGalleryIndex(0);
+    setLightboxImg(null);
+  };
 
   // Load custom items/sections from localStorage on mount
   useEffect(() => {
@@ -402,7 +435,7 @@ export default function RestaurantPage() {
             <div className="items-grid">
               {section.items.map((item) => (
                 <div key={item.name} className="menu-item">
-                  <div className="item-image">
+                  <div className="item-image" onClick={() => openProfile(item)}>
                     {item.imageData ? (
                       <img
                         src={item.imageData}
@@ -435,6 +468,9 @@ export default function RestaurantPage() {
                     )}
                   </div>
                   <div className="item-name">{item.name}</div>
+                  <button className="view-profile-btn" onClick={() => openProfile(item)}>
+                    View Profile
+                  </button>
                   <div className="item-description">{item.description}</div>
                   <div className="item-price">${formatPrice(item.price)}</div>
                   <button
@@ -768,6 +804,122 @@ export default function RestaurantPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Profile Page Modal */}
+      {selectedItem && !lightboxImg && (() => {
+        // Build gallery: main image first, then extraImages
+        const galleryImgs = [];
+        if (selectedItem.imageData) {
+          galleryImgs.push({ type: 'base64', src: selectedItem.imageData });
+        } else if (!imgErrors.has(selectedItem.name)) {
+          galleryImgs.push({ type: 'url', src: `/images/${selectedItem.name.toLowerCase()}.jpg`, objectPosition: selectedItem.objectPosition });
+        } else {
+          galleryImgs.push({ type: 'gradient' });
+        }
+        if (selectedItem.extraImages && selectedItem.extraImages.length > 0) {
+          selectedItem.extraImages.forEach((img) => galleryImgs.push({ type: 'base64', src: img }));
+        }
+        const safeGalleryIndex = Math.min(galleryIndex, galleryImgs.length - 1);
+        const curImg = galleryImgs[safeGalleryIndex];
+        const galleryTotal = galleryImgs.length;
+
+        return (
+        <div className="profile-overlay">
+          {/* Close */}
+          <button className="profile-close" onClick={() => setSelectedItem(null)}>×</button>
+
+          <div className="profile-modal" onClick={(e) => e.stopPropagation()}>
+            {/* Left: sticky image with gallery navigation */}
+            <div className="profile-hero">
+              {curImg.type === 'gradient' ? (
+                <div className="profile-hero-gradient" style={{ background: `linear-gradient(135deg, ${selectedItem.gradientStart}, ${selectedItem.gradientEnd})` }}>
+                  <span className="profile-hero-initials">{selectedItem.initials}</span>
+                </div>
+              ) : (
+                <img
+                  src={curImg.src}
+                  alt={selectedItem.name}
+                  className="profile-hero-img"
+                  style={curImg.objectPosition ? { objectPosition: curImg.objectPosition } : {}}
+                  onError={curImg.type === 'url' ? () => setImgErrors((prev) => new Set([...prev, selectedItem.name])) : undefined}
+                />
+              )}
+
+              {/* Gallery nav arrows — inside the image panel */}
+              {galleryTotal > 1 && (
+                <>
+                  <button className="gallery-nav gallery-nav-prev" onClick={() => setGalleryIndex((safeGalleryIndex - 1 + galleryTotal) % galleryTotal)}>&#8249;</button>
+                  <button className="gallery-nav gallery-nav-next" onClick={() => setGalleryIndex((safeGalleryIndex + 1) % galleryTotal)}>&#8250;</button>
+                  <div className="gallery-dots">
+                    {galleryImgs.map((_, i) => (
+                      <button key={i} className={`gallery-dot${i === safeGalleryIndex ? ' active' : ''}`} onClick={() => setGalleryIndex(i)} />
+                    ))}
+                  </div>
+                  <div className="gallery-counter">{safeGalleryIndex + 1} / {galleryTotal}</div>
+                </>
+              )}
+            </div>
+
+            {/* Right: scrollable content */}
+            <div className="profile-body">
+              <div className="profile-section-tag">{menuSections.find(s => s.items.some(i => i.name === selectedItem.name))?.title || ''}</div>
+              <div className="profile-name">{selectedItem.name}</div>
+              <div className="profile-price">${formatPrice(selectedItem.price)}</div>
+              <div className="profile-description">{selectedItem.description}</div>
+
+              {selectedItem.bio ? (
+                <div className="profile-bio">{selectedItem.bio}</div>
+              ) : (
+                <div className="profile-bio profile-bio-empty">No additional information available for this profile yet.</div>
+              )}
+
+              {/* Thumbnail strip — click to jump to that photo */}
+              {galleryTotal > 1 && (
+                <div className="profile-thumb-strip">
+                  {galleryImgs.map((img, i) => (
+                    <button
+                      key={i}
+                      className={`profile-thumb-btn${i === safeGalleryIndex ? ' active' : ''}`}
+                      onClick={() => setGalleryIndex(i)}
+                    >
+                      {img.type === 'gradient' ? (
+                        <div className="profile-thumb-gradient" style={{ background: `linear-gradient(135deg, ${selectedItem.gradientStart}, ${selectedItem.gradientEnd})` }}>
+                          <span>{selectedItem.initials}</span>
+                        </div>
+                      ) : (
+                        <img src={img.src} alt="" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="profile-actions">
+                <button
+                  className="profile-add-btn"
+                  onClick={() => { addToCart(selectedItem.name, selectedItem.price); setSelectedItem(null); }}
+                >
+                  Add to Cart — ${formatPrice(selectedItem.price)}
+                </button>
+                {profileList.length > 1 && (
+                  <div className="profile-browse-row">
+                    <button className="profile-browse-btn" onClick={goProfilePrev}>← Previous</button>
+                    <button className="profile-browse-btn" onClick={goProfileNext}>Next →</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
+
+      {/* Lightbox */}
+      {lightboxImg && (
+        <div className="lightbox" onClick={() => setLightboxImg(null)}>
+          <img src={lightboxImg} alt="" className="lightbox-img" />
         </div>
       )}
 
