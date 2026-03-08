@@ -111,12 +111,43 @@ export default function AdminPage() {
     if (!loggedIn) return;
     const sections = JSON.parse(localStorage.getItem('wfd_custom_sections') || '[]');
     const items = JSON.parse(localStorage.getItem('wfd_custom_items') || '[]');
-    const savedOrders = JSON.parse(localStorage.getItem('wfd_orders') || '[]');
     const overrides = JSON.parse(localStorage.getItem('wfd_item_overrides') || '{}');
     setCustomSections(sections);
     setCustomItems(items);
-    setOrders(savedOrders);
     setItemOverrides(overrides);
+
+    // Load orders: Supabase first, fallback to localStorage
+    const loadOrders = async () => {
+      if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('orders')
+            .select('*, order_items(*)')
+            .order('created_at', { ascending: false });
+          if (!error && data) {
+            // Normalize Supabase rows to match the localStorage shape
+            const normalized = data.map((o) => ({
+              id: o.id,
+              date: o.date || o.created_at?.split('T')[0],
+              time: o.time || o.created_at?.split('T')[1]?.slice(0, 5),
+              day: o.day || '',
+              customerInfo: o.customer_info || o.customerInfo || {},
+              paymentMethod: o.payment_method || o.paymentMethod || '',
+              total: o.total,
+              items: (o.order_items || []).map((i) => ({ name: i.name, price: i.price })),
+            }));
+            setOrders(normalized);
+            return;
+          }
+        } catch (err) {
+          console.error('Supabase fetch error:', err);
+        }
+      }
+      // Fallback: localStorage
+      const savedOrders = JSON.parse(localStorage.getItem('wfd_orders') || '[]');
+      setOrders(savedOrders);
+    };
+    loadOrders();
   }, [loggedIn]);
 
   const handleLogin = (e) => {
@@ -170,18 +201,28 @@ export default function AdminPage() {
   };
 
   // ── Orders helpers ──
-  const deleteOrder = (id) => {
+  const deleteOrder = async (id) => {
     const updated = orders.filter((o) => o.id !== id);
     setOrders(updated);
-    localStorage.setItem('wfd_orders', JSON.stringify(updated));
     if (expandedOrder === id) setExpandedOrder(null);
+    if (supabase) {
+      await supabase.from('order_items').delete().eq('order_id', id);
+      await supabase.from('orders').delete().eq('id', id);
+    } else {
+      localStorage.setItem('wfd_orders', JSON.stringify(updated));
+    }
     showToast('Receipt deleted!');
   };
 
-  const clearAllOrders = () => {
+  const clearAllOrders = async () => {
     setOrders([]);
     setExpandedOrder(null);
-    localStorage.setItem('wfd_orders', JSON.stringify([]));
+    if (supabase) {
+      await supabase.from('order_items').delete().neq('id', 0);
+      await supabase.from('orders').delete().neq('id', 0);
+    } else {
+      localStorage.setItem('wfd_orders', JSON.stringify([]));
+    }
     showToast('All receipts cleared!');
   };
 
