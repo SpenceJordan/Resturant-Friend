@@ -562,8 +562,8 @@ export default function AdminPage() {
     setOrders([]);
     setExpandedOrder(null);
     if (supabase) {
-      await supabase.from('order_items').delete().neq('id', 0);
-      await supabase.from('orders').delete().neq('id', 0);
+      await supabase.from('order_items').delete().gte('created_at', '2000-01-01');
+      await supabase.from('orders').delete().gte('created_at', '2000-01-01');
     } else {
       localStorage.setItem('wfd_orders', JSON.stringify([]));
     }

@@ -63,8 +63,10 @@ alter table public.menu_items enable row level security;
 -- Drop existing policies so this script is safe to re-run
 drop policy if exists "Allow anonymous select on orders" on public.orders;
 drop policy if exists "Allow anonymous insert on orders" on public.orders;
+drop policy if exists "Allow anonymous delete on orders" on public.orders;
 drop policy if exists "Allow anonymous select on order_items" on public.order_items;
 drop policy if exists "Allow anonymous insert on order_items" on public.order_items;
+drop policy if exists "Allow anonymous delete on order_items" on public.order_items;
 drop policy if exists "Allow anonymous read menu_images" on public.menu_images;
 drop policy if exists "Allow anonymous upsert menu_images" on public.menu_images;
 drop policy if exists "Allow anonymous update menu_images" on public.menu_images;
@@ -78,6 +80,10 @@ create policy "Allow anonymous insert on orders"
   on public.orders for insert
   with check (true);
 
+create policy "Allow anonymous delete on orders"
+  on public.orders for delete
+  using (true);
+
 create policy "Allow anonymous select on order_items"
   on public.order_items for select
   using (true);
@@ -85,6 +91,10 @@ create policy "Allow anonymous select on order_items"
 create policy "Allow anonymous insert on order_items"
   on public.order_items for insert
   with check (true);
+
+create policy "Allow anonymous delete on order_items"
+  on public.order_items for delete
+  using (true);
 
 create policy "Allow anonymous read menu_images"
   on public.menu_images for select
