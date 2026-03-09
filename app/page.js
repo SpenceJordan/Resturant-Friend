@@ -380,7 +380,7 @@ export default function RestaurantPage() {
     // localStorage gate — prevent re-reviewing same item on this device
     const reviewed = JSON.parse(localStorage.getItem('wfd_reviewed') || '{}');
     if (reviewed[itemName]) {
-      showToast('You've already reviewed this item!');
+      showToast("You've already reviewed this item!");
       return;
     }
     setSubmittingReview(true);
