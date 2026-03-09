@@ -68,7 +68,16 @@ function buildMenuSections(customSections, customItems, sectionOrder, sectionRen
     if (!sectionOrder) sectionOrder = JSON.parse(localStorage.getItem('wfd_section_order') || 'null');
     if (!sectionRenames) sectionRenames = JSON.parse(localStorage.getItem('wfd_section_renames') || '{}');
 
-    const overrides = itemOverrides ?? JSON.parse(localStorage.getItem('wfd_item_overrides') || '{}');
+    // Merge: Supabase has metadata (price, soldOut, etc.), localStorage has image data
+    const localOverrides = JSON.parse(localStorage.getItem('wfd_item_overrides') || '{}');
+    const overrides = itemOverrides
+      ? Object.fromEntries(
+          [...new Set([...Object.keys(localOverrides), ...Object.keys(itemOverrides)])].map((k) => [
+            k,
+            { ...(localOverrides[k] || {}), ...(itemOverrides[k] || {}) },
+          ])
+        )
+      : localOverrides;
 
     // Build section map with display names
     const sectionMap = {};

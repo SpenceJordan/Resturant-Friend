@@ -413,9 +413,16 @@ export default function AdminPage() {
   };
 
   const saveOverridesToSupabase = async (overrides) => {
-    if (supabase) {
-      await supabase.from('settings').upsert({ key: 'item_overrides', value: overrides }, { onConflict: 'key' });
-    }
+    if (!supabase) return;
+    // Strip base64 image data — too large for a settings row, kept in localStorage only
+    const stripped = Object.fromEntries(
+      Object.entries(overrides).map(([k, v]) => {
+        const { imageData, extraImages, ...rest } = v;
+        return [k, rest];
+      })
+    );
+    const { error } = await supabase.from('settings').upsert({ key: 'item_overrides', value: stripped });
+    if (error) console.error('saveOverridesToSupabase error:', error.message);
   };
 
   const resetOverride = (sectionTitle, originalName) => {
