@@ -146,6 +146,11 @@ export default function RestaurantPage() {
   const [reviews, setReviews] = useState([]);
   const [reviewDraft, setReviewDraft] = useState({ name: '', stars: 5, text: '' });
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [ordersOpen, setOrdersOpen] = useState(false);
+  const [orderLookupEmail, setOrderLookupEmail] = useState('');
+  const [myOrders, setMyOrders] = useState([]);
+  const [lookingUpOrders, setLookingUpOrders] = useState(false);
+  const [ordersLoaded, setOrdersLoaded] = useState(false);
 
   const toastTimerRef = useRef(null);
 
@@ -369,6 +374,39 @@ export default function RestaurantPage() {
     showToast('Review submitted — thanks!');
   };
 
+  const lookupOrders = async () => {
+    const email = orderLookupEmail.trim().toLowerCase();
+    if (!email) return;
+    setLookingUpOrders(true);
+    setMyOrders([]);
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*, order_items(*)')
+        .ilike('customer_email', email)
+        .order('created_at', { ascending: false });
+      if (!error && data) {
+        setMyOrders(data.map((o) => ({
+          id: o.id,
+          date: new Date(o.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          time: new Date(o.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          items: (o.order_items || []).map((i) => ({ name: i.item_name, price: i.price })),
+          total: o.total,
+          paymentMethod: o.payment_method,
+          customerInfo: { name: o.customer_name, email: o.customer_email },
+        })));
+        setOrdersLoaded(true);
+      }
+    } else {
+      // Fallback: localStorage
+      const stored = JSON.parse(localStorage.getItem('wfd_orders') || '[]');
+      const filtered = stored.filter((o) => o.customerInfo?.email?.toLowerCase() === email);
+      setMyOrders(filtered);
+      setOrdersLoaded(true);
+    }
+    setLookingUpOrders(false);
+  };
+
   const filteredSections = menuSections
     .map((section) => ({
       ...section,
@@ -392,6 +430,31 @@ export default function RestaurantPage() {
     <>
       {/* Header */}
       <div className="header" style={{ position: 'relative' }}>
+        <button
+          onClick={() => { setOrdersOpen(true); setOrdersLoaded(false); setMyOrders([]); setOrderLookupEmail(''); }}
+          style={{
+            position: 'absolute',
+            top: '20px',
+            left: '20px',
+            fontSize: '0.8rem',
+            fontFamily: "'Crimson Text', serif",
+            fontWeight: 600,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: 'var(--dark)',
+            background: 'none',
+            border: '1px solid currentColor',
+            borderRadius: '4px',
+            padding: '6px 12px',
+            cursor: 'pointer',
+            opacity: 0.45,
+            transition: 'opacity 0.2s ease',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.45')}
+        >
+          📋 My Orders
+        </button>
         <Link
           href="/admin"
           style={{
@@ -1019,6 +1082,63 @@ export default function RestaurantPage() {
       {lightboxImg && (
         <div className="lightbox" onClick={() => setLightboxImg(null)}>
           <img src={lightboxImg} alt="" className="lightbox-img" />
+        </div>
+      )}
+
+      {/* My Orders Modal */}
+      {ordersOpen && (
+        <div className="orders-overlay" onClick={() => setOrdersOpen(false)}>
+          <div className="orders-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="orders-header">
+              <div className="orders-title">My Orders</div>
+              <button className="orders-close" onClick={() => setOrdersOpen(false)}>×</button>
+            </div>
+            <div className="orders-lookup">
+              <p className="orders-lookup-label">Enter your email to view your order history</p>
+              <div className="orders-lookup-row">
+                <input
+                  className="orders-email-input"
+                  type="email"
+                  placeholder="your@email.com"
+                  value={orderLookupEmail}
+                  onChange={(e) => { setOrderLookupEmail(e.target.value); setOrdersLoaded(false); setMyOrders([]); }}
+                  onKeyDown={(e) => e.key === 'Enter' && lookupOrders()}
+                />
+                <button className="orders-lookup-btn" onClick={lookupOrders} disabled={lookingUpOrders}>
+                  {lookingUpOrders ? '...' : 'Look Up'}
+                </button>
+              </div>
+            </div>
+
+            {ordersLoaded && myOrders.length === 0 && (
+              <div className="orders-empty">No orders found for that email.</div>
+            )}
+
+            {myOrders.length > 0 && (
+              <div className="orders-list">
+                {myOrders.map((order, idx) => (
+                  <div key={order.id || idx} className="order-card">
+                    <div className="order-card-header">
+                      <div className="order-card-date">{order.date} · {order.time}</div>
+                      <div className="order-card-total">${formatPrice(order.total)}</div>
+                    </div>
+                    <div className="order-card-items">
+                      {order.items.map((item, i) => (
+                        <div key={i} className="order-card-item">
+                          <span>{item.name}</span>
+                          <span>${formatPrice(item.price)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="order-card-footer">
+                      <span className="order-card-payment">{order.paymentMethod === 'cash' ? 'Cash' : 'Card'}</span>
+                      <span className="order-card-status">Completed</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
