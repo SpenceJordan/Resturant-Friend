@@ -2055,6 +2055,10 @@ h1 {
 }
 
 @media print {
+    html, body {
+        height: auto;
+        overflow: hidden;
+    }
     body * {
         visibility: hidden;
     }
@@ -2062,11 +2066,13 @@ h1 {
         visibility: visible;
     }
     .receipt {
-        position: absolute;
+        position: fixed;
         left: 0;
         top: 0;
         width: 100%;
         box-shadow: none;
+        margin: 0;
+        border-radius: 0;
     }
     .receipt-buttons, .receipt-close {
         display: none !important;
