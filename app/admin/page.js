@@ -234,7 +234,7 @@ export default function AdminPage() {
         const [sectionsRes, itemsRes, settingsRes] = await Promise.all([
           supabase.from('menu_sections').select('title').order('created_at'),
           supabase.from('menu_items').select('*').order('created_at'),
-          supabase.from('settings').select('key,value').in('key', ['section_order', 'section_renames']),
+          supabase.from('settings').select('key,value').in('key', ['section_order', 'section_renames', 'item_overrides']),
         ]);
         const customSecs = sectionsRes.error ? [] : sectionsRes.data.map((s) => s.title);
         setCustomSections(customSecs);
@@ -261,6 +261,11 @@ export default function AdminPage() {
             setSectionOrder([...DEFAULT_SECTIONS, ...customSecs]);
           }
           if (renamesRow?.value) setSectionRenames(renamesRow.value);
+          const overridesRow = settingsRes.data.find((r) => r.key === 'item_overrides');
+          if (overridesRow?.value) {
+            setItemOverrides(overridesRow.value);
+            localStorage.setItem('wfd_item_overrides', JSON.stringify(overridesRow.value));
+          }
         } else {
           setSectionOrder([...DEFAULT_SECTIONS, ...customSecs]);
         }
@@ -371,6 +376,7 @@ export default function AdminPage() {
     const updated = { ...itemOverrides, [key]: { name: editDraft.name.trim(), price, description: editDraft.description.trim(), bio: editDraft.bio?.trim() || null, extraImages: editDraft.extraImages || [], imageData: editDraft.imageData || null, imagePosition: editDraft.imagePosition || '', ratingOverride: editDraft.ratingOverride ? parseFloat(editDraft.ratingOverride) : null, ratingOverrideEnabled: editDraft.ratingOverrideEnabled || false } };
     setItemOverrides(updated);
     localStorage.setItem('wfd_item_overrides', JSON.stringify(updated));
+    saveOverridesToSupabase(updated);
     setEditingKey(null);
     showToast('Item updated!');
   };
@@ -406,12 +412,19 @@ export default function AdminPage() {
     showToast('Item updated!');
   };
 
+  const saveOverridesToSupabase = async (overrides) => {
+    if (supabase) {
+      await supabase.from('settings').upsert({ key: 'item_overrides', value: overrides }, { onConflict: 'key' });
+    }
+  };
+
   const resetOverride = (sectionTitle, originalName) => {
     const key = `${sectionTitle}:${originalName}`;
     const updated = { ...itemOverrides };
     delete updated[key];
     setItemOverrides(updated);
     localStorage.setItem('wfd_item_overrides', JSON.stringify(updated));
+    saveOverridesToSupabase(updated);
     showToast('Reset to default!');
   };
 
@@ -431,6 +444,7 @@ export default function AdminPage() {
       const updated = { ...itemOverrides, [key]: { ...ov, soldOut: newVal } };
       setItemOverrides(updated);
       localStorage.setItem('wfd_item_overrides', JSON.stringify(updated));
+      saveOverridesToSupabase(updated);
     }
     showToast(newVal ? 'Marked as sold out!' : 'Back in stock!');
   };

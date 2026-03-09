@@ -60,7 +60,7 @@ const defaultMenuSections = [
 ];
 
 // Merge default sections with custom ones stored in localStorage
-function buildMenuSections(customSections, customItems, sectionOrder, sectionRenames) {
+function buildMenuSections(customSections, customItems, sectionOrder, sectionRenames, itemOverrides) {
   if (typeof window === 'undefined') return defaultMenuSections;
   try {
     if (!customSections) customSections = JSON.parse(localStorage.getItem('wfd_custom_sections') || '[]');
@@ -68,7 +68,7 @@ function buildMenuSections(customSections, customItems, sectionOrder, sectionRen
     if (!sectionOrder) sectionOrder = JSON.parse(localStorage.getItem('wfd_section_order') || 'null');
     if (!sectionRenames) sectionRenames = JSON.parse(localStorage.getItem('wfd_section_renames') || '{}');
 
-    const overrides = JSON.parse(localStorage.getItem('wfd_item_overrides') || '{}');
+    const overrides = itemOverrides ?? JSON.parse(localStorage.getItem('wfd_item_overrides') || '{}');
 
     // Build section map with display names
     const sectionMap = {};
@@ -183,7 +183,7 @@ export default function RestaurantPage() {
           const [sectionsRes, itemsRes, settingsRes, reviewsRes] = await Promise.all([
             supabase.from('menu_sections').select('title').order('created_at'),
             supabase.from('menu_items').select('*').order('created_at'),
-            supabase.from('settings').select('key,value').in('key', ['section_order', 'section_renames']),
+            supabase.from('settings').select('key,value').in('key', ['section_order', 'section_renames', 'item_overrides']),
             supabase.from('reviews').select('*').order('created_at', { ascending: false }),
           ]);
           const customSections = sectionsRes.error ? [] : sectionsRes.data.map((s) => s.title);
@@ -200,7 +200,8 @@ export default function RestaurantPage() {
           const settings = settingsRes.error ? [] : (settingsRes.data || []);
           const sectionOrder = settings.find((r) => r.key === 'section_order')?.value || null;
           const sectionRenames = settings.find((r) => r.key === 'section_renames')?.value || {};
-          setMenuSections(buildMenuSections(customSections, customItems, sectionOrder, sectionRenames));
+          const itemOverrides = settings.find((r) => r.key === 'item_overrides')?.value || null;
+          setMenuSections(buildMenuSections(customSections, customItems, sectionOrder, sectionRenames, itemOverrides));
           return;
         } catch {
           // fall through to localStorage
