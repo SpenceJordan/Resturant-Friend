@@ -368,7 +368,7 @@ export default function AdminPage() {
       description: ov?.description ?? item.description,
       bio: ov?.bio ?? item.bio ?? '',
       extraImages: ov?.extraImages ?? item.extraImages ?? [],
-      imageData: item.imageData ?? null,
+      imageData: ov?.imageData ?? item.imageData ?? null,
       imagePosition: ov?.imagePosition ?? item.imagePosition ?? '',
       ratingOverride: ov?.ratingOverride ?? item.ratingOverride ?? '',
       ratingOverrideEnabled: ov?.ratingOverrideEnabled ?? item.ratingOverrideEnabled ?? false,
@@ -386,6 +386,13 @@ export default function AdminPage() {
     setItemOverrides(updated);
     localStorage.setItem('wfd_item_overrides', JSON.stringify(updated));
     saveOverridesToSupabase(updated);
+    if (supabase) {
+      if (editDraft.imageData) {
+        supabase.from('settings').upsert({ key: `img_${originalName}`, value: editDraft.imageData });
+      } else {
+        supabase.from('settings').delete().eq('key', `img_${originalName}`);
+      }
+    }
     setEditingKey(null);
     showToast('Item updated!');
   };
@@ -441,6 +448,7 @@ export default function AdminPage() {
     setItemOverrides(updated);
     localStorage.setItem('wfd_item_overrides', JSON.stringify(updated));
     saveOverridesToSupabase(updated);
+    if (supabase) supabase.from('settings').delete().eq('key', `img_${originalName}`);
     showToast('Reset to default!');
   };
 

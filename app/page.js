@@ -60,7 +60,7 @@ const defaultMenuSections = [
 ];
 
 // Merge default sections with custom ones stored in localStorage
-function buildMenuSections(customSections, customItems, sectionOrder, sectionRenames, itemOverrides) {
+function buildMenuSections(customSections, customItems, sectionOrder, sectionRenames, itemOverrides, imgOverrides = {}) {
   if (typeof window === 'undefined') return defaultMenuSections;
   try {
     if (!customSections) customSections = JSON.parse(localStorage.getItem('wfd_custom_sections') || '[]');
@@ -88,7 +88,9 @@ function buildMenuSections(customSections, customItems, sectionOrder, sectionRen
         _originalTitle: s.title,
         items: s.items.map((item) => {
           const key = `${s.title}:${item.name}`;
-          return overrides[key] ? { ...item, ...overrides[key] } : item;
+          const ov = overrides[key];
+          const img = imgOverrides[item.name];
+          return (ov || img) ? { ...item, ...(ov || {}), ...(img ? { imageData: img } : {}) } : item;
         }),
       };
     });
@@ -194,11 +196,12 @@ export default function RestaurantPage() {
     const load = async () => {
       if (supabase) {
         try {
-          const [sectionsRes, itemsRes, settingsRes, reviewsRes] = await Promise.all([
+          const [sectionsRes, itemsRes, settingsRes, reviewsRes, imgRes] = await Promise.all([
             supabase.from('menu_sections').select('title').order('created_at'),
             supabase.from('menu_items').select('*').order('created_at'),
             supabase.from('settings').select('key,value').in('key', ['section_order', 'section_renames', 'item_overrides']),
             supabase.from('reviews').select('*').order('created_at', { ascending: false }),
+            supabase.from('settings').select('key,value').like('key', 'img_%'),
           ]);
           const customSections = sectionsRes.error ? [] : sectionsRes.data.map((s) => s.title);
           const customItems = itemsRes.error ? [] : itemsRes.data.map((i) => ({
@@ -215,7 +218,11 @@ export default function RestaurantPage() {
           const sectionOrder = settings.find((r) => r.key === 'section_order')?.value || null;
           const sectionRenames = settings.find((r) => r.key === 'section_renames')?.value || {};
           const itemOverrides = settings.find((r) => r.key === 'item_overrides')?.value || null;
-          setMenuSections(buildMenuSections(customSections, customItems, sectionOrder, sectionRenames, itemOverrides));
+          const imgOverrides = {};
+          if (!imgRes.error && imgRes.data) {
+            imgRes.data.forEach((r) => { imgOverrides[r.key.replace('img_', '')] = r.value; });
+          }
+          setMenuSections(buildMenuSections(customSections, customItems, sectionOrder, sectionRenames, itemOverrides, imgOverrides));
           return;
         } catch {
           // fall through to localStorage
