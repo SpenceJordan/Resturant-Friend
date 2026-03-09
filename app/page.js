@@ -367,23 +367,44 @@ export default function RestaurantPage() {
   ));
 
   const submitReview = async (itemName) => {
-    if (!reviewDraft.name.trim() || !reviewDraft.text.trim()) {
+    const name = reviewDraft.name.trim();
+    const text = reviewDraft.text.trim();
+    if (!name || !text) {
       showToast('Please fill in your name and review!');
       return;
     }
+    if (text.length < 10) {
+      showToast('Review must be at least 10 characters.');
+      return;
+    }
+    // localStorage gate — prevent re-reviewing same item on this device
+    const reviewed = JSON.parse(localStorage.getItem('wfd_reviewed') || '{}');
+    if (reviewed[itemName]) {
+      showToast('You've already reviewed this item!');
+      return;
+    }
     setSubmittingReview(true);
-    const newReview = {
-      item_name: itemName,
-      reviewer_name: reviewDraft.name.trim(),
-      stars: reviewDraft.stars,
-      review_text: reviewDraft.text.trim(),
-    };
+    if (supabase) {
+      // Supabase duplicate check — same name + same item
+      const { data: existing } = await supabase
+        .from('reviews').select('id').eq('item_name', itemName).ilike('reviewer_name', name).limit(1);
+      if (existing && existing.length > 0) {
+        showToast('A review from you already exists for this item.');
+        setSubmittingReview(false);
+        return;
+      }
+    }
+    const newReview = { item_name: itemName, reviewer_name: name, stars: reviewDraft.stars, review_text: text };
     if (supabase) {
       const { data, error } = await supabase.from('reviews').insert(newReview).select().single();
-      if (!error) setReviews((prev) => [{ ...newReview, id: data.id, created_at: data.created_at }, ...prev]);
+      if (error) { showToast('Could not submit review. Try again.'); setSubmittingReview(false); return; }
+      setReviews((prev) => [{ ...newReview, id: data.id, created_at: data.created_at }, ...prev]);
     } else {
       setReviews((prev) => [{ ...newReview, id: Date.now().toString(), created_at: new Date().toISOString() }, ...prev]);
     }
+    // Mark as reviewed in localStorage
+    reviewed[itemName] = true;
+    localStorage.setItem('wfd_reviewed', JSON.stringify(reviewed));
     setReviewDraft({ name: '', stars: 5, text: '' });
     setSubmittingReview(false);
     showToast('Review submitted — thanks!');
@@ -1035,38 +1056,50 @@ export default function RestaurantPage() {
                       </div>
                     )}
 
-                    <div className="write-review">
-                      <div className="write-review-title">Leave a Review</div>
-                      <input
-                        className="profile-review-input"
-                        placeholder="Your name"
-                        value={reviewDraft.name}
-                        onChange={(e) => setReviewDraft((p) => ({ ...p, name: e.target.value }))}
-                      />
-                      <div className="star-picker">
-                        {[1, 2, 3, 4, 5].map((s) => (
-                          <button key={s} className="star-btn" onClick={() => setReviewDraft((p) => ({ ...p, stars: s }))}>
-                            <span style={{ color: s <= reviewDraft.stars ? '#f0a500' : '#ddd', fontSize: '1.6rem' }}>★</span>
+                    {(() => {
+                      const reviewed = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('wfd_reviewed') || '{}') : {};
+                      if (reviewed[selectedItem.name]) {
+                        return (
+                          <div className="write-review" style={{ textAlign: 'center', color: '#888', fontSize: '0.9rem', padding: '18px 0' }}>
+                            ✓ You've already reviewed {selectedItem.name}
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="write-review">
+                          <div className="write-review-title">Leave a Review</div>
+                          <input
+                            className="profile-review-input"
+                            placeholder="Your name"
+                            value={reviewDraft.name}
+                            onChange={(e) => setReviewDraft((p) => ({ ...p, name: e.target.value }))}
+                          />
+                          <div className="star-picker">
+                            {[1, 2, 3, 4, 5].map((s) => (
+                              <button key={s} className="star-btn" onClick={() => setReviewDraft((p) => ({ ...p, stars: s }))}>
+                                <span style={{ color: s <= reviewDraft.stars ? '#f0a500' : '#ddd', fontSize: '1.6rem' }}>★</span>
+                              </button>
+                            ))}
+                          </div>
+                          <textarea
+                            className="profile-review-input"
+                            placeholder="Write your review... (10 characters minimum)"
+                            rows={3}
+                            value={reviewDraft.text}
+                            onChange={(e) => setReviewDraft((p) => ({ ...p, text: e.target.value }))}
+                            style={{ resize: 'none' }}
+                          />
+                          <button
+                            className="profile-add-btn"
+                            style={{ marginTop: '8px', fontSize: '0.9rem', padding: '10px 20px' }}
+                            onClick={() => submitReview(selectedItem.name)}
+                            disabled={submittingReview}
+                          >
+                            {submittingReview ? 'Submitting...' : 'Submit Review'}
                           </button>
-                        ))}
-                      </div>
-                      <textarea
-                        className="profile-review-input"
-                        placeholder="Write your review..."
-                        rows={3}
-                        value={reviewDraft.text}
-                        onChange={(e) => setReviewDraft((p) => ({ ...p, text: e.target.value }))}
-                        style={{ resize: 'none' }}
-                      />
-                      <button
-                        className="profile-add-btn"
-                        style={{ marginTop: '8px', fontSize: '0.9rem', padding: '10px 20px' }}
-                        onClick={() => submitReview(selectedItem.name)}
-                        disabled={submittingReview}
-                      >
-                        {submittingReview ? 'Submitting...' : 'Submit Review'}
-                      </button>
-                    </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })()}
