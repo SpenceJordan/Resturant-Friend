@@ -78,6 +78,94 @@ const EMPTY_ITEM = {
 const ADMIN_USER = 'JordanSpence';
 const ADMIN_PASS = 'AdminJor';
 
+function EditForm({ editDraft, setEditDraft, editGalleryInputRef, handleEditGalleryUpload, onSave, onCancel }) {
+  const posMatch = (editDraft.imagePosition || '').match(/(\d+)%\s*$/);
+  const posY = posMatch ? parseInt(posMatch[1]) : 30;
+  return (
+    <div style={{ marginTop: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '12px', marginBottom: '10px' }}>
+        <div className="admin-form-group" style={{ marginBottom: 0 }}>
+          <label className="admin-label">Name</label>
+          <input className="admin-input" value={editDraft.name} onChange={(e) => setEditDraft((p) => ({ ...p, name: e.target.value }))} />
+        </div>
+        <div className="admin-form-group" style={{ marginBottom: 0, minWidth: '110px' }}>
+          <label className="admin-label">Price ($)</label>
+          <input className="admin-input" type="number" min="0" step="0.01" value={editDraft.price} onChange={(e) => setEditDraft((p) => ({ ...p, price: e.target.value }))} />
+        </div>
+      </div>
+      <div className="admin-form-group" style={{ marginBottom: '10px' }}>
+        <label className="admin-label">Description</label>
+        <input className="admin-input" value={editDraft.description} onChange={(e) => setEditDraft((p) => ({ ...p, description: e.target.value }))} />
+      </div>
+      <div className="admin-form-group" style={{ marginBottom: '10px' }}>
+        <label className="admin-label">Profile Photo</label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          {editDraft.imageData && (
+            <div style={{ position: 'relative', width: '60px', height: '60px', flexShrink: 0 }}>
+              <img src={editDraft.imageData} alt="" style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '50%', border: '2px solid var(--cream)' }} />
+              <button type="button" onClick={() => setEditDraft((p) => ({ ...p, imageData: null }))} style={{ position: 'absolute', top: '-4px', right: '-4px', background: 'var(--red)', color: 'white', border: 'none', borderRadius: '50%', width: '18px', height: '18px', cursor: 'pointer', fontSize: '0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+            </div>
+          )}
+          <label style={{ cursor: 'pointer', background: 'var(--cream)', border: '1.5px solid #ddd', borderRadius: '6px', padding: '7px 16px', fontSize: '0.88rem', fontFamily: "'Crimson Text', serif", color: '#555' }}>
+            {editDraft.imageData ? 'Change Photo' : '+ Upload Photo'}
+            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => {
+              const file = e.target.files[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = (ev) => setEditDraft((p) => ({ ...p, imageData: ev.target.result }));
+              reader.readAsDataURL(file);
+              e.target.value = '';
+            }} />
+          </label>
+        </div>
+      </div>
+      {editDraft.imageData && (
+        <div className="admin-form-group" style={{ marginBottom: '10px' }}>
+          <label className="admin-label">Crop Position (vertical)</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ width: '54px', height: '72px', borderRadius: '8px', overflow: 'hidden', flexShrink: 0, border: '2px solid var(--cream)' }}>
+              <img src={editDraft.imageData} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: `center ${posY}%` }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <input
+                type="range" min="0" max="100" value={posY}
+                onChange={(e) => setEditDraft((p) => ({ ...p, imagePosition: `center ${e.target.value}%` }))}
+                style={{ width: '100%', accentColor: 'var(--red)' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#999', marginTop: '2px' }}>
+                <span>Top</span><span>Center</span><span>Bottom</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="admin-form-group" style={{ marginBottom: '10px' }}>
+        <label className="admin-label">Bio</label>
+        <textarea className="admin-input" rows={3} value={editDraft.bio || ''} onChange={(e) => setEditDraft((p) => ({ ...p, bio: e.target.value }))} placeholder="Profile bio..." style={{ resize: 'vertical', lineHeight: '1.6' }} />
+      </div>
+      <div className="admin-form-group" style={{ marginBottom: '12px' }}>
+        <label className="admin-label">Gallery Photos</label>
+        {(editDraft.extraImages || []).length > 0 && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(60px,1fr))', gap: '6px', marginBottom: '8px' }}>
+            {editDraft.extraImages.map((img, i) => (
+              <div key={i} style={{ position: 'relative' }}>
+                <img src={img} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: '4px' }} />
+                <button type="button" onClick={() => setEditDraft((p) => ({ ...p, extraImages: p.extraImages.filter((_, idx) => idx !== i) }))} style={{ position: 'absolute', top: '2px', right: '2px', background: 'rgba(200,68,68,0.85)', color: 'white', border: 'none', borderRadius: '50%', width: '18px', height: '18px', cursor: 'pointer', fontSize: '0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <button type="button" className="random-btn" onClick={() => editGalleryInputRef.current?.click()}>+ Add Photos</button>
+        <input ref={editGalleryInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleEditGalleryUpload} />
+      </div>
+      <div style={{ display: 'flex', gap: '10px' }}>
+        <button className="admin-submit" style={{ margin: 0, flex: 1, padding: '10px' }} onClick={onSave}>Save</button>
+        <button className="del-btn" style={{ flex: 1 }} onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [loginUser, setLoginUser] = useState('');
@@ -1341,95 +1429,6 @@ export default function AdminPage() {
                 ...customSections.filter((t) => !DEFAULT_MENU.find((s) => s.title === t)),
               ];
 
-              // Shared inline edit form
-              const EditForm = ({ onSave, onCancel }) => (
-                <div style={{ marginTop: '12px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '12px', marginBottom: '10px' }}>
-                    <div className="admin-form-group" style={{ marginBottom: 0 }}>
-                      <label className="admin-label">Name</label>
-                      <input className="admin-input" value={editDraft.name} onChange={(e) => setEditDraft((p) => ({ ...p, name: e.target.value }))} />
-                    </div>
-                    <div className="admin-form-group" style={{ marginBottom: 0, minWidth: '110px' }}>
-                      <label className="admin-label">Price ($)</label>
-                      <input className="admin-input" type="number" min="0" step="0.01" value={editDraft.price} onChange={(e) => setEditDraft((p) => ({ ...p, price: e.target.value }))} />
-                    </div>
-                  </div>
-                  <div className="admin-form-group" style={{ marginBottom: '10px' }}>
-                    <label className="admin-label">Description</label>
-                    <input className="admin-input" value={editDraft.description} onChange={(e) => setEditDraft((p) => ({ ...p, description: e.target.value }))} />
-                  </div>
-                  <div className="admin-form-group" style={{ marginBottom: '10px' }}>
-                    <label className="admin-label">Profile Photo</label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                      {editDraft.imageData && (
-                        <div style={{ position: 'relative', width: '60px', height: '60px', flexShrink: 0 }}>
-                          <img src={editDraft.imageData} alt="" style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '50%', border: '2px solid var(--cream)' }} />
-                          <button type="button" onClick={() => setEditDraft((p) => ({ ...p, imageData: null }))} style={{ position: 'absolute', top: '-4px', right: '-4px', background: 'var(--red)', color: 'white', border: 'none', borderRadius: '50%', width: '18px', height: '18px', cursor: 'pointer', fontSize: '0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
-                        </div>
-                      )}
-                      <label style={{ cursor: 'pointer', background: 'var(--cream)', border: '1.5px solid #ddd', borderRadius: '6px', padding: '7px 16px', fontSize: '0.88rem', fontFamily: "'Crimson Text', serif", color: '#555' }}>
-                        {editDraft.imageData ? 'Change Photo' : '+ Upload Photo'}
-                        <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => {
-                          const file = e.target.files[0];
-                          if (!file) return;
-                          const reader = new FileReader();
-                          reader.onload = (ev) => setEditDraft((p) => ({ ...p, imageData: ev.target.result }));
-                          reader.readAsDataURL(file);
-                          e.target.value = '';
-                        }} />
-                      </label>
-                    </div>
-                  </div>
-                  {editDraft.imageData && (() => {
-                    const posMatch = (editDraft.imagePosition || '').match(/(\d+)%\s*$/);
-                    const posY = posMatch ? parseInt(posMatch[1]) : 30;
-                    return (
-                      <div className="admin-form-group" style={{ marginBottom: '10px' }}>
-                        <label className="admin-label">Crop Position (vertical)</label>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                          <div style={{ width: '54px', height: '72px', borderRadius: '8px', overflow: 'hidden', flexShrink: 0, border: '2px solid var(--cream)' }}>
-                            <img src={editDraft.imageData} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: `center ${posY}%` }} />
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <input
-                              type="range" min="0" max="100" value={posY}
-                              onChange={(e) => setEditDraft((p) => ({ ...p, imagePosition: `center ${e.target.value}%` }))}
-                              style={{ width: '100%', accentColor: 'var(--red)' }}
-                            />
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#999', marginTop: '2px' }}>
-                              <span>Top</span><span>Center</span><span>Bottom</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                  <div className="admin-form-group" style={{ marginBottom: '10px' }}>
-                    <label className="admin-label">Bio</label>
-                    <textarea className="admin-input" rows={3} value={editDraft.bio || ''} onChange={(e) => setEditDraft((p) => ({ ...p, bio: e.target.value }))} placeholder="Profile bio..." style={{ resize: 'vertical', lineHeight: '1.6' }} />
-                  </div>
-                  <div className="admin-form-group" style={{ marginBottom: '12px' }}>
-                    <label className="admin-label">Gallery Photos</label>
-                    {(editDraft.extraImages || []).length > 0 && (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(60px,1fr))', gap: '6px', marginBottom: '8px' }}>
-                        {editDraft.extraImages.map((img, i) => (
-                          <div key={i} style={{ position: 'relative' }}>
-                            <img src={img} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: '4px' }} />
-                            <button type="button" onClick={() => setEditDraft((p) => ({ ...p, extraImages: p.extraImages.filter((_, idx) => idx !== i) }))} style={{ position: 'absolute', top: '2px', right: '2px', background: 'rgba(200,68,68,0.85)', color: 'white', border: 'none', borderRadius: '50%', width: '18px', height: '18px', cursor: 'pointer', fontSize: '0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <button type="button" className="random-btn" onClick={() => editGalleryInputRef.current?.click()}>+ Add Photos</button>
-                    <input ref={editGalleryInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleEditGalleryUpload} />
-                  </div>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <button className="admin-submit" style={{ margin: 0, flex: 1, padding: '10px' }} onClick={onSave}>Save</button>
-                    <button className="del-btn" style={{ flex: 1 }} onClick={onCancel}>Cancel</button>
-                  </div>
-                </div>
-              );
-
               return sectionTitles.map((sectionTitle) => {
                 const defaultSection = DEFAULT_MENU.find((s) => s.title === sectionTitle);
                 const defaultItems = defaultSection ? defaultSection.items : [];
@@ -1466,7 +1465,7 @@ export default function AdminPage() {
                                 </button>
                               </div>
                             </div>
-                            {isEditing && <EditForm onSave={() => saveEdit(sectionTitle, item.name)} onCancel={() => setEditingKey(null)} />}
+                            {isEditing && <EditForm editDraft={editDraft} setEditDraft={setEditDraft} editGalleryInputRef={editGalleryInputRef} handleEditGalleryUpload={handleEditGalleryUpload} onSave={() => saveEdit(sectionTitle, item.name)} onCancel={() => setEditingKey(null)} />}
                           </div>
                         );
                       })}
@@ -1497,7 +1496,7 @@ export default function AdminPage() {
                                 </button>
                               </div>
                             </div>
-                            {isEditing && <EditForm onSave={() => saveCustomItemEdit(item.id)} onCancel={() => setEditingKey(null)} />}
+                            {isEditing && <EditForm editDraft={editDraft} setEditDraft={setEditDraft} editGalleryInputRef={editGalleryInputRef} handleEditGalleryUpload={handleEditGalleryUpload} onSave={() => saveCustomItemEdit(item.id)} onCancel={() => setEditingKey(null)} />}
                           </div>
                         );
                       })}
