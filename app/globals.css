@@ -2055,24 +2055,31 @@ h1 {
 }
 
 @media print {
+    @page {
+        margin: 1cm;
+    }
     html, body {
-        height: auto;
-        overflow: hidden;
+        height: auto !important;
+        overflow: hidden !important;
     }
-    body * {
-        visibility: hidden;
+    body > * {
+        display: none !important;
     }
-    .receipt, .receipt * {
-        visibility: visible;
+    .receipt-overlay {
+        display: block !important;
+        position: static !important;
+        background: none !important;
+        overflow: visible !important;
+        height: auto !important;
     }
     .receipt {
-        position: fixed;
-        left: 0;
-        top: 0;
-        width: 100%;
-        box-shadow: none;
-        margin: 0;
-        border-radius: 0;
+        display: block !important;
+        position: static !important;
+        width: 100% !important;
+        max-width: 520px !important;
+        margin: 0 auto !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
     }
     .receipt-buttons, .receipt-close {
         display: none !important;
