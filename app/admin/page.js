@@ -128,7 +128,8 @@ export default function AdminPage() {
         if (!itemsRes.error) {
           setCustomItems(itemsRes.data.map((i) => ({
             id: i.id, name: i.name, price: i.price, description: i.description, bio: i.bio,
-            section: i.section, imageData: i.image_data, extraImages: i.extra_images || [],
+            section: i.section, imageData: i.image_data, imagePosition: i.image_position || '',
+            extraImages: i.extra_images || [],
             gradientStart: i.gradient_start, gradientEnd: i.gradient_end, initials: i.initials,
           })));
         }
@@ -238,6 +239,7 @@ export default function AdminPage() {
       bio: ov?.bio ?? item.bio ?? '',
       extraImages: ov?.extraImages ?? item.extraImages ?? [],
       imageData: item.imageData ?? null,
+      imagePosition: ov?.imagePosition ?? item.imagePosition ?? '',
     });
   };
 
@@ -248,7 +250,7 @@ export default function AdminPage() {
       showToast('Name and valid price are required!', 'error');
       return;
     }
-    const updated = { ...itemOverrides, [key]: { name: editDraft.name.trim(), price, description: editDraft.description.trim(), bio: editDraft.bio?.trim() || null, extraImages: editDraft.extraImages || [], imageData: editDraft.imageData || null } };
+    const updated = { ...itemOverrides, [key]: { name: editDraft.name.trim(), price, description: editDraft.description.trim(), bio: editDraft.bio?.trim() || null, extraImages: editDraft.extraImages || [], imageData: editDraft.imageData || null, imagePosition: editDraft.imagePosition || '' } };
     setItemOverrides(updated);
     localStorage.setItem('wfd_item_overrides', JSON.stringify(updated));
     setEditingKey(null);
@@ -263,7 +265,7 @@ export default function AdminPage() {
     }
     const updated = customItems.map((i) =>
       i.id === itemId
-        ? { ...i, name: editDraft.name.trim(), price, description: editDraft.description.trim(), bio: editDraft.bio?.trim() || null, extraImages: editDraft.extraImages || [], imageData: editDraft.imageData ?? i.imageData }
+        ? { ...i, name: editDraft.name.trim(), price, description: editDraft.description.trim(), bio: editDraft.bio?.trim() || null, extraImages: editDraft.extraImages || [], imageData: editDraft.imageData ?? i.imageData, imagePosition: editDraft.imagePosition ?? i.imagePosition }
         : i
     );
     setCustomItems(updated);
@@ -275,6 +277,7 @@ export default function AdminPage() {
         bio: editDraft.bio?.trim() || null,
         extra_images: editDraft.extraImages || [],
         image_data: editDraft.imageData ?? updated.find(i => i.id === itemId)?.imageData,
+        image_position: editDraft.imagePosition || null,
       }).eq('id', itemId);
     } else {
       localStorage.setItem('wfd_custom_items', JSON.stringify(updated));
@@ -1377,6 +1380,30 @@ export default function AdminPage() {
                       </label>
                     </div>
                   </div>
+                  {editDraft.imageData && (() => {
+                    const posMatch = (editDraft.imagePosition || '').match(/(\d+)%\s*$/);
+                    const posY = posMatch ? parseInt(posMatch[1]) : 30;
+                    return (
+                      <div className="admin-form-group" style={{ marginBottom: '10px' }}>
+                        <label className="admin-label">Crop Position (vertical)</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                          <div style={{ width: '54px', height: '72px', borderRadius: '8px', overflow: 'hidden', flexShrink: 0, border: '2px solid var(--cream)' }}>
+                            <img src={editDraft.imageData} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: `center ${posY}%` }} />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <input
+                              type="range" min="0" max="100" value={posY}
+                              onChange={(e) => setEditDraft((p) => ({ ...p, imagePosition: `center ${e.target.value}%` }))}
+                              style={{ width: '100%', accentColor: 'var(--red)' }}
+                            />
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#999', marginTop: '2px' }}>
+                              <span>Top</span><span>Center</span><span>Bottom</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <div className="admin-form-group" style={{ marginBottom: '10px' }}>
                     <label className="admin-label">Bio</label>
                     <textarea className="admin-input" rows={3} value={editDraft.bio || ''} onChange={(e) => setEditDraft((p) => ({ ...p, bio: e.target.value }))} placeholder="Profile bio..." style={{ resize: 'vertical', lineHeight: '1.6' }} />

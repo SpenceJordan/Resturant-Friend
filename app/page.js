@@ -98,6 +98,7 @@ function buildMenuSections(customSections, customItems, sectionOrder, sectionRen
           name: item.name, price: item.price, description: item.description,
           gradientStart: item.gradientStart, gradientEnd: item.gradientEnd,
           initials: item.initials, imageData: item.imageData || null,
+          imagePosition: item.imagePosition || '',
           bio: item.bio || null, extraImages: item.extraImages || [],
         });
       }
@@ -181,7 +182,8 @@ export default function RestaurantPage() {
           const customSections = sectionsRes.error ? [] : sectionsRes.data.map((s) => s.title);
           const customItems = itemsRes.error ? [] : itemsRes.data.map((i) => ({
             id: i.id, name: i.name, price: i.price, description: i.description, bio: i.bio,
-            section: i.section, imageData: i.image_data, extraImages: i.extra_images || [],
+            section: i.section, imageData: i.image_data, imagePosition: i.image_position || '',
+            extraImages: i.extra_images || [],
             gradientStart: i.gradient_start, gradientEnd: i.gradient_end, initials: i.initials,
           }));
           const settings = settingsRes.error ? [] : (settingsRes.data || []);
@@ -243,7 +245,6 @@ export default function RestaurantPage() {
       phone: form.customerPhone.value,
       address: form.customerAddress.value,
       city: form.customerCity.value,
-      postal: form.customerPostal.value,
       notes: form.customerNotes.value,
     };
     setCustomerInfo(info);
@@ -457,7 +458,7 @@ export default function RestaurantPage() {
                       <img
                         src={item.imageData}
                         alt={item.name}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', ...(item.imagePosition ? { objectPosition: item.imagePosition } : {}) }}
                       />
                     ) : !imgErrors.has(item.name) ? (
                       <img
@@ -489,18 +490,20 @@ export default function RestaurantPage() {
                     View Profile
                   </button>
                   <div className="item-description">{item.description}</div>
-                  <div className="item-price">${formatPrice(item.price)}</div>
-                  <button
-                    className="add-btn"
-                    onClick={() => addToCart(item.name, item.price)}
-                    style={
-                      justAdded.has(item.name)
-                        ? { background: 'var(--gold)', color: 'var(--dark)' }
-                        : {}
-                    }
-                  >
-                    <span>{justAdded.has(item.name) ? 'Added! ✓' : 'Add to Cart'}</span>
-                  </button>
+                  <div className="item-card-bottom">
+                    <div className="item-price">${formatPrice(item.price)}</div>
+                    <button
+                      className="add-btn"
+                      onClick={() => addToCart(item.name, item.price)}
+                      style={
+                        justAdded.has(item.name)
+                          ? { background: 'var(--gold)', color: 'var(--dark)' }
+                          : {}
+                      }
+                    >
+                      <span>{justAdded.has(item.name) ? 'Added! ✓' : 'Add to Cart'}</span>
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -635,31 +638,17 @@ export default function RestaurantPage() {
                   required
                 />
               </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">
-                    City <span className="required">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    name="customerCity"
-                    placeholder="City"
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">
-                    Postal Code <span className="required">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    name="customerPostal"
-                    placeholder="12345"
-                    required
-                  />
-                </div>
+              <div className="form-group">
+                <label className="form-label">
+                  City <span className="required">*</span>
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  name="customerCity"
+                  placeholder="City"
+                  required
+                />
               </div>
               <div className="form-group">
                 <label className="form-label">Special Instructions (Optional)</label>
@@ -718,107 +707,62 @@ export default function RestaurantPage() {
       {receiptOpen && receiptData && (
         <div className="receipt-overlay active">
           <div className="receipt">
-            <button className="receipt-close" onClick={closeReceipt}>
-              ×
-            </button>
-            <div className="receipt-title">RECEIPT</div>
-            <div className="receipt-date-row">
-              <div>
-                <strong>Day:</strong> {receiptData.day}
-              </div>
-              <div>
-                <strong>Date:</strong> {receiptData.date}
-              </div>
+            <button className="receipt-close" onClick={closeReceipt}>×</button>
+
+            {/* Header */}
+            <div className="receipt-header">
+              <div className="receipt-brand">Who&apos;s for Dinner?</div>
+              <div className="receipt-tagline">Order Confirmation</div>
+              <div className="receipt-divider-gold" />
             </div>
 
-            <div
-              style={{
-                marginBottom: '20px',
-                padding: '15px',
-                background: 'rgba(255,255,255,0.05)',
-                border: '2px solid rgba(255,255,255,0.2)',
-              }}
-            >
-              <div style={{ fontWeight: 600, marginBottom: '10px', fontSize: '1.1rem' }}>
-                Customer Information
-              </div>
-              <div style={{ fontSize: '0.95rem', lineHeight: 1.8 }}>
-                <div>
-                  <strong>Name:</strong> {receiptData.customerInfo.name}
-                </div>
-                <div>
-                  <strong>Email:</strong> {receiptData.customerInfo.email}
-                </div>
-                <div>
-                  <strong>Phone:</strong> {receiptData.customerInfo.phone}
-                </div>
-                <div>
-                  <strong>Address:</strong> {receiptData.customerInfo.address},{' '}
-                  {receiptData.customerInfo.city}, {receiptData.customerInfo.postal}
-                </div>
+            {/* Date row */}
+            <div className="receipt-meta-row">
+              <span>{receiptData.day} {receiptData.date}</span>
+              <span style={{ background: receiptData.paymentMethod === 'cash' ? '#2b8a3e' : '#4C6EF5', color: 'white', padding: '3px 12px', borderRadius: '20px', fontSize: '0.78rem', fontFamily: "'Crimson Text', serif", letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                {receiptData.paymentMethod === 'cash' ? 'Cash' : 'Card'}
+              </span>
+            </div>
+
+            {/* Customer */}
+            <div className="receipt-section">
+              <div className="receipt-section-label">Customer</div>
+              <div className="receipt-customer-grid">
+                <div><span className="receipt-field-label">Name</span><span>{receiptData.customerInfo.name}</span></div>
+                <div><span className="receipt-field-label">Phone</span><span>{receiptData.customerInfo.phone}</span></div>
+                <div style={{ gridColumn: '1 / -1' }}><span className="receipt-field-label">Email</span><span>{receiptData.customerInfo.email}</span></div>
+                <div style={{ gridColumn: '1 / -1' }}><span className="receipt-field-label">Address</span><span>{receiptData.customerInfo.address}{receiptData.customerInfo.city ? `, ${receiptData.customerInfo.city}` : ''}</span></div>
                 {receiptData.customerInfo.notes && (
-                  <div>
-                    <strong>Notes:</strong> {receiptData.customerInfo.notes}
+                  <div style={{ gridColumn: '1 / -1', background: '#fffbf0', border: '1px solid #f0d080', borderLeft: '3px solid var(--gold)', borderRadius: '4px', padding: '6px 10px' }}>
+                    <span className="receipt-field-label">Note</span><span style={{ fontStyle: 'italic' }}>{receiptData.customerInfo.notes}</span>
                   </div>
                 )}
               </div>
             </div>
 
-            <table className="receipt-table">
-              <thead>
-                <tr>
-                  <th>No</th>
-                  <th>Name of Dish</th>
-                  <th>Price</th>
-                </tr>
-              </thead>
-              <tbody>
-                {receiptData.items.map((item, index) => (
-                  <tr key={index}>
-                    <td>{index + 1}.</td>
-                    <td>{item.name}</td>
-                    <td>${formatPrice(item.price)}</td>
-                  </tr>
+            {/* Items */}
+            <div className="receipt-section">
+              <div className="receipt-section-label">Order</div>
+              <div className="receipt-items">
+                {receiptData.items.map((item, i) => (
+                  <div key={i} className="receipt-item-row">
+                    <span className="receipt-item-num">{i + 1}</span>
+                    <span className="receipt-item-name">{item.name}</span>
+                    <span className="receipt-item-price">${formatPrice(item.price)}</span>
+                  </div>
                 ))}
-                {Array.from(
-                  { length: Math.max(0, 7 - receiptData.items.length) },
-                  (_, i) => (
-                    <tr key={`empty-${i}`} className="empty-row">
-                      <td>{receiptData.items.length + i + 1}.</td>
-                      <td></td>
-                      <td></td>
-                    </tr>
-                  )
-                )}
-                <tr>
-                  <td>
-                    {Math.min(
-                      receiptData.items.length + Math.max(0, 7 - receiptData.items.length) + 1,
-                      8
-                    )}
-                    .
-                  </td>
-                  <td>Payment Method</td>
-                  <td>{receiptData.paymentMethod === 'card' ? '💳 Card' : '💵 Cash'}</td>
-                </tr>
-                <tr className="total-row">
-                  <td>9.</td>
-                  <td>Total</td>
-                  <td>${formatPrice(receiptData.total)}</td>
-                </tr>
-              </tbody>
-            </table>
-
-            <div className="receipt-contact">
-              +123-456-7890 | @Who&#39;sforDinner? | 123 Jordan&#39;s House, St, Any City
+              </div>
+              <div className="receipt-total-row">
+                <span>Total</span>
+                <span>${formatPrice(receiptData.total)}</span>
+              </div>
             </div>
+
+            <div className="receipt-footer">Thank you for your order!</div>
+
             <div className="receipt-buttons">
-              <button className="receipt-btn primary" onClick={() => window.print()}>
-                Print Receipt
-              </button>
-              <button className="receipt-btn" onClick={closeReceipt}>
-                Close
-              </button>
+              <button className="receipt-btn primary" onClick={() => window.print()}>Print</button>
+              <button className="receipt-btn" onClick={closeReceipt}>Close</button>
             </div>
           </div>
         </div>
@@ -829,7 +773,7 @@ export default function RestaurantPage() {
         // Build gallery: main image first, then extraImages
         const galleryImgs = [];
         if (selectedItem.imageData) {
-          galleryImgs.push({ type: 'base64', src: selectedItem.imageData });
+          galleryImgs.push({ type: 'base64', src: selectedItem.imageData, objectPosition: selectedItem.imagePosition || 'center 30%' });
         } else if (!imgErrors.has(selectedItem.name)) {
           galleryImgs.push({ type: 'url', src: `/images/${selectedItem.name.toLowerCase()}.jpg`, objectPosition: selectedItem.objectPosition });
         } else {

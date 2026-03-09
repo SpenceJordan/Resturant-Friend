@@ -45,6 +45,7 @@ create table if not exists public.menu_items (
   bio text,
   section text not null,
   image_data text,
+  image_position text default 'center 30%',
   extra_images jsonb default '[]',
   gradient_start text,
   gradient_end text,
@@ -132,3 +133,6 @@ drop policy if exists "Allow anon update settings" on public.settings;
 create policy "Allow anon select settings" on public.settings for select using (true);
 create policy "Allow anon insert settings" on public.settings for insert with check (true);
 create policy "Allow anon update settings" on public.settings for update using (true) with check (true);
+
+-- Add image_position column to existing tables (safe to re-run)
+alter table public.menu_items add column if not exists image_position text default 'center 30%';
