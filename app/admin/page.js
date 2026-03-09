@@ -1729,7 +1729,7 @@ export default function AdminPage() {
                       </div>
                       {r.review_text && <div style={{ fontFamily: "'Crimson Text', serif", fontSize: '0.92rem', color: '#555', fontStyle: 'italic' }}>&ldquo;{r.review_text}&rdquo;</div>}
                       <div style={{ fontSize: '0.75rem', color: '#bbb', marginTop: '4px', fontFamily: "'Crimson Text', serif" }}>
-                        {new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · {new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </div>
                     <button className="del-btn" style={{ flexShrink: 0 }} onClick={() => deleteReview(r.id)}>Delete</button>
