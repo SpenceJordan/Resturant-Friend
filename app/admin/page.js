@@ -211,6 +211,7 @@ export default function AdminPage() {
   const [editingSectionKey, setEditingSectionKey] = useState(null);
   const [sectionNameDraft, setSectionNameDraft] = useState('');
   const [activeTab, setActiveTab] = useState('items');
+  const [reviews, setReviews] = useState([]);
   const [newSection, setNewSection] = useState('');
   const [newItem, setNewItem] = useState(EMPTY_ITEM);
   const [preview, setPreview] = useState(null);
@@ -327,6 +328,14 @@ export default function AdminPage() {
       setOrders(savedOrders);
     };
     loadOrders();
+
+    const loadReviews = async () => {
+      if (supabase) {
+        const { data, error } = await supabase.from('reviews').select('*').order('created_at', { ascending: false });
+        if (!error && data) setReviews(data);
+      }
+    };
+    loadReviews();
   }, [loggedIn]);
 
   const handleLogin = (e) => {
@@ -530,6 +539,12 @@ export default function AdminPage() {
   };
 
   // ── Orders helpers ──
+  const deleteReview = async (id) => {
+    setReviews((prev) => prev.filter((r) => r.id !== id));
+    if (supabase) await supabase.from('reviews').delete().eq('id', id);
+    showToast('Review deleted.');
+  };
+
   const deleteOrder = async (id) => {
     const updated = orders.filter((o) => o.id !== id);
     setOrders(updated);
@@ -1261,6 +1276,12 @@ export default function AdminPage() {
           >
             Receipts ({orders.length})
           </button>
+          <button
+            className={`admin-tab${activeTab === 'reviews' ? ' active' : ''}`}
+            onClick={() => setActiveTab('reviews')}
+          >
+            Reviews ({reviews.length})
+          </button>
         </div>
 
         {/* ── ADD PERSON TAB ── */}
@@ -1685,6 +1706,35 @@ export default function AdminPage() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── REVIEWS TAB ── */}
+        {activeTab === 'reviews' && (
+          <div className="admin-card">
+            <h2 className="admin-card-title">Reviews ({reviews.length})</h2>
+            {reviews.length === 0 ? (
+              <p style={{ fontFamily: "'Crimson Text', serif", fontStyle: 'italic', color: '#aaa' }}>No reviews yet.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {reviews.map((r) => (
+                  <div key={r.id} style={{ background: '#faf8f4', border: '1px solid #e8e2d8', borderRadius: '8px', padding: '12px 16px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                        <span style={{ fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, fontSize: '1rem' }}>{r.reviewer_name}</span>
+                        <span style={{ background: 'var(--red)', color: 'white', borderRadius: '12px', padding: '1px 10px', fontSize: '0.78rem', fontFamily: "'Crimson Text', serif" }}>{r.item_name}</span>
+                        <span style={{ color: '#f0a500', fontSize: '0.9rem', letterSpacing: '2px' }}>{'★'.repeat(r.stars)}{'☆'.repeat(5 - r.stars)}</span>
+                      </div>
+                      {r.review_text && <div style={{ fontFamily: "'Crimson Text', serif", fontSize: '0.92rem', color: '#555', fontStyle: 'italic' }}>&ldquo;{r.review_text}&rdquo;</div>}
+                      <div style={{ fontSize: '0.75rem', color: '#bbb', marginTop: '4px', fontFamily: "'Crimson Text', serif" }}>
+                        {new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </div>
+                    </div>
+                    <button className="del-btn" style={{ flexShrink: 0 }} onClick={() => deleteReview(r.id)}>Delete</button>
+                  </div>
+                ))}
               </div>
             )}
           </div>

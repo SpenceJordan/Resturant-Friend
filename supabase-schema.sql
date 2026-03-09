@@ -152,5 +152,7 @@ create table if not exists public.reviews (
 alter table public.reviews enable row level security;
 drop policy if exists "Allow anon select reviews" on public.reviews;
 drop policy if exists "Allow anon insert reviews" on public.reviews;
+drop policy if exists "Allow anon delete reviews" on public.reviews;
 create policy "Allow anon select reviews" on public.reviews for select using (true);
 create policy "Allow anon insert reviews" on public.reviews for insert with check (true);
+create policy "Allow anon delete reviews" on public.reviews for delete using (true);
