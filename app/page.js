@@ -313,7 +313,6 @@ export default function RestaurantPage() {
             customer_phone: customerInfo.phone,
             customer_address: customerInfo.address,
             customer_city: customerInfo.city,
-            customer_postal: customerInfo.postal,
             customer_notes: customerInfo.notes || null,
             total: cartTotal,
             payment_method: selectedPayment,

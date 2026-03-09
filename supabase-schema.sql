@@ -7,7 +7,7 @@ create table if not exists public.orders (
   customer_phone text not null,
   customer_address text not null,
   customer_city text not null,
-  customer_postal text not null,
+  customer_postal text,
   customer_notes text,
   total numeric not null,
   payment_method text not null,
