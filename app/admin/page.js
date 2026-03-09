@@ -63,6 +63,24 @@ const DEFAULT_MENU = [
   ]},
 ];
 
+function compressImage(dataUrl, maxDim = 900, quality = 0.82) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+        else { w = Math.round(w * maxDim / h); h = maxDim; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.src = dataUrl;
+  });
+}
+
 const EMPTY_ITEM = {
   name: '',
   price: '',
@@ -112,7 +130,10 @@ function EditForm({ editDraft, setEditDraft, editGalleryInputRef, handleEditGall
               const file = e.target.files[0];
               if (!file) return;
               const reader = new FileReader();
-              reader.onload = (ev) => setEditDraft((p) => ({ ...p, imageData: ev.target.result }));
+              reader.onload = async (ev) => {
+                const compressed = await compressImage(ev.target.result);
+                setEditDraft((p) => ({ ...p, imageData: compressed }));
+              };
               reader.readAsDataURL(file);
               e.target.value = '';
             }} />
@@ -375,7 +396,7 @@ export default function AdminPage() {
     });
   };
 
-  const saveEdit = (sectionTitle, originalName) => {
+  const saveEdit = async (sectionTitle, originalName) => {
     const key = `${sectionTitle}:${originalName}`;
     const price = parseFloat(editDraft.price);
     if (!editDraft.name.trim() || isNaN(price) || price <= 0) {
@@ -388,9 +409,14 @@ export default function AdminPage() {
     saveOverridesToSupabase(updated);
     if (supabase) {
       if (editDraft.imageData) {
-        supabase.from('settings').upsert({ key: `img_${originalName}`, value: editDraft.imageData });
+        const { error: imgErr } = await supabase.from('settings').upsert({ key: `img_${originalName}`, value: editDraft.imageData });
+        if (imgErr) {
+          console.error('Image save error:', imgErr.message);
+          showToast('Photo save failed: ' + imgErr.message, 'error');
+          return;
+        }
       } else {
-        supabase.from('settings').delete().eq('key', `img_${originalName}`);
+        await supabase.from('settings').delete().eq('key', `img_${originalName}`);
       }
     }
     setEditingKey(null);
@@ -634,9 +660,10 @@ export default function AdminPage() {
       return;
     }
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      setNewItem((prev) => ({ ...prev, imageData: ev.target.result }));
-      setPreview(ev.target.result);
+    reader.onload = async (ev) => {
+      const compressed = await compressImage(ev.target.result);
+      setNewItem((prev) => ({ ...prev, imageData: compressed }));
+      setPreview(compressed);
     };
     reader.readAsDataURL(file);
   };
