@@ -134,5 +134,23 @@ create policy "Allow anon select settings" on public.settings for select using (
 create policy "Allow anon insert settings" on public.settings for insert with check (true);
 create policy "Allow anon update settings" on public.settings for update using (true) with check (true);
 
--- Add image_position column to existing tables (safe to re-run)
+-- Add columns to existing tables (safe to re-run)
 alter table public.menu_items add column if not exists image_position text default 'center 30%';
+alter table public.menu_items add column if not exists sold_out boolean default false;
+alter table public.menu_items add column if not exists rating_override numeric;
+alter table public.menu_items add column if not exists rating_override_enabled boolean default false;
+
+-- Reviews (one row per review per person)
+create table if not exists public.reviews (
+  id uuid primary key default gen_random_uuid(),
+  item_name text not null,
+  reviewer_name text not null,
+  stars integer not null check (stars between 1 and 5),
+  review_text text,
+  created_at timestamptz default now()
+);
+alter table public.reviews enable row level security;
+drop policy if exists "Allow anon select reviews" on public.reviews;
+drop policy if exists "Allow anon insert reviews" on public.reviews;
+create policy "Allow anon select reviews" on public.reviews for select using (true);
+create policy "Allow anon insert reviews" on public.reviews for insert with check (true);

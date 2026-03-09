@@ -1030,6 +1030,176 @@ h1 {
 .receipt-btn.primary { background: var(--red); border-color: var(--red); color: white; }
 .receipt-btn.primary:hover { background: #a83535; border-color: #a83535; }
 
+/* Order Confirmation Banner */
+.order-confirm-banner {
+    background: linear-gradient(135deg, var(--red) 0%, #8B3030 100%);
+    color: white;
+    border-radius: 10px;
+    padding: 24px 20px;
+    text-align: center;
+    margin-bottom: 22px;
+}
+.order-confirm-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.9rem;
+    font-weight: 700;
+    margin-bottom: 2px;
+}
+.order-confirm-time {
+    font-family: 'Crimson Text', serif;
+    font-size: 0.88rem;
+    opacity: 0.85;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 4px;
+}
+.order-confirm-eta {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 3rem;
+    font-weight: 700;
+    line-height: 1;
+}
+.order-confirm-sub {
+    font-family: 'Crimson Text', serif;
+    font-size: 0.85rem;
+    opacity: 0.75;
+    margin-top: 6px;
+    font-style: italic;
+}
+
+/* Sold Out */
+.menu-item-sold-out .item-image { filter: grayscale(60%); }
+.sold-out-stamp {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-20deg);
+    background: rgba(30, 30, 30, 0.88);
+    color: white;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    padding: 4px 10px;
+    border: 1.5px solid rgba(255,255,255,0.6);
+    border-radius: 2px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    z-index: 2;
+    pointer-events: none;
+}
+
+/* Star Ratings */
+.item-rating {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    margin-bottom: 4px;
+    font-size: 0.82rem;
+}
+
+/* Profile Reviews */
+.profile-reviews {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+.profile-reviews-header { margin-bottom: 12px; }
+.profile-rating-summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.profile-rating-stars { display: flex; }
+.profile-rating-avg {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--dark);
+}
+.profile-rating-count {
+    font-family: 'Crimson Text', serif;
+    font-size: 0.9rem;
+    color: #888;
+}
+.profile-rating-none {
+    font-family: 'Crimson Text', serif;
+    font-style: italic;
+    color: #aaa;
+    font-size: 0.9rem;
+}
+.review-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+.review-card {
+    background: #faf9f6;
+    border: 1px solid #ede9e0;
+    border-radius: 8px;
+    padding: 12px 14px;
+}
+.review-stars { font-size: 0.9rem; margin-bottom: 3px; }
+.review-author {
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: var(--dark);
+    font-family: 'Crimson Text', serif;
+    margin-bottom: 4px;
+}
+.review-text {
+    font-size: 0.88rem;
+    color: #555;
+    font-style: italic;
+    line-height: 1.5;
+    font-family: 'Crimson Text', serif;
+}
+.review-date {
+    font-size: 0.72rem;
+    color: #bbb;
+    margin-top: 5px;
+}
+.write-review {
+    border-top: 1px dashed #e0dbd0;
+    padding-top: 16px;
+}
+.write-review-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: var(--dark);
+}
+.profile-review-input {
+    width: 100%;
+    border: 1.5px solid #ddd;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-family: 'Crimson Text', serif;
+    font-size: 0.95rem;
+    color: var(--dark);
+    background: white;
+    margin-bottom: 8px;
+    box-sizing: border-box;
+}
+.profile-review-input:focus { outline: none; border-color: var(--red); }
+.star-picker {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+.star-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    line-height: 1;
+    transition: transform 0.1s;
+}
+.star-btn:hover { transform: scale(1.2); }
+
 /* Customer Info Modal */
 .customer-modal {
     position: fixed;

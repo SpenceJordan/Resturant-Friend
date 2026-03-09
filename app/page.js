@@ -99,6 +99,9 @@ function buildMenuSections(customSections, customItems, sectionOrder, sectionRen
           gradientStart: item.gradientStart, gradientEnd: item.gradientEnd,
           initials: item.initials, imageData: item.imageData || null,
           imagePosition: item.imagePosition || '',
+          soldOut: item.soldOut || false,
+          ratingOverride: item.ratingOverride ?? null,
+          ratingOverrideEnabled: item.ratingOverrideEnabled || false,
           bio: item.bio || null, extraImages: item.extraImages || [],
         });
       }
@@ -140,6 +143,9 @@ export default function RestaurantPage() {
   const [profileList, setProfileList] = useState([]);
   const [profileIndex, setProfileIndex] = useState(0);
   const [galleryIndex, setGalleryIndex] = useState(0);
+  const [reviews, setReviews] = useState([]);
+  const [reviewDraft, setReviewDraft] = useState({ name: '', stars: 5, text: '' });
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   const toastTimerRef = useRef(null);
 
@@ -174,10 +180,11 @@ export default function RestaurantPage() {
     const load = async () => {
       if (supabase) {
         try {
-          const [sectionsRes, itemsRes, settingsRes] = await Promise.all([
+          const [sectionsRes, itemsRes, settingsRes, reviewsRes] = await Promise.all([
             supabase.from('menu_sections').select('title').order('created_at'),
             supabase.from('menu_items').select('*').order('created_at'),
             supabase.from('settings').select('key,value').in('key', ['section_order', 'section_renames']),
+            supabase.from('reviews').select('*').order('created_at', { ascending: false }),
           ]);
           const customSections = sectionsRes.error ? [] : sectionsRes.data.map((s) => s.title);
           const customItems = itemsRes.error ? [] : itemsRes.data.map((i) => ({
@@ -185,7 +192,11 @@ export default function RestaurantPage() {
             section: i.section, imageData: i.image_data, imagePosition: i.image_position || '',
             extraImages: i.extra_images || [],
             gradientStart: i.gradient_start, gradientEnd: i.gradient_end, initials: i.initials,
+            soldOut: i.sold_out || false,
+            ratingOverride: i.rating_override ?? null,
+            ratingOverrideEnabled: i.rating_override_enabled || false,
           }));
+          if (!reviewsRes.error) setReviews(reviewsRes.data || []);
           const settings = settingsRes.error ? [] : (settingsRes.data || []);
           const sectionOrder = settings.find((r) => r.key === 'section_order')?.value || null;
           const sectionRenames = settings.find((r) => r.key === 'section_renames')?.value || {};
@@ -257,6 +268,7 @@ export default function RestaurantPage() {
     if (!selectedPayment) return;
     const now = new Date();
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const estimatedMin = Math.floor(Math.random() * 16) + 20;
     const order = {
       id: Date.now().toString(),
       day: days[now.getDay()],
@@ -266,6 +278,7 @@ export default function RestaurantPage() {
       total: cartTotal,
       customerInfo: { ...customerInfo },
       paymentMethod: selectedPayment,
+      estimatedMin,
     };
 
     if (supabase) {
@@ -316,6 +329,43 @@ export default function RestaurantPage() {
   const closeReceipt = () => {
     setReceiptOpen(false);
     setReceiptData(null);
+  };
+
+  const getItemRating = (item) => {
+    const itemReviews = reviews.filter((r) => r.item_name === item.name);
+    if (item.ratingOverrideEnabled && item.ratingOverride != null) {
+      return { avg: item.ratingOverride, count: itemReviews.length, isOverride: true };
+    }
+    if (itemReviews.length === 0) return null;
+    const avg = itemReviews.reduce((sum, r) => sum + r.stars, 0) / itemReviews.length;
+    return { avg: Math.round(avg * 10) / 10, count: itemReviews.length, isOverride: false };
+  };
+
+  const renderStars = (avg, size = 1) => [1, 2, 3, 4, 5].map((i) => (
+    <span key={i} style={{ color: i <= Math.round(avg) ? '#f0a500' : '#ddd', fontSize: `${size}em` }}>★</span>
+  ));
+
+  const submitReview = async (itemName) => {
+    if (!reviewDraft.name.trim() || !reviewDraft.text.trim()) {
+      showToast('Please fill in your name and review!');
+      return;
+    }
+    setSubmittingReview(true);
+    const newReview = {
+      item_name: itemName,
+      reviewer_name: reviewDraft.name.trim(),
+      stars: reviewDraft.stars,
+      review_text: reviewDraft.text.trim(),
+    };
+    if (supabase) {
+      const { data, error } = await supabase.from('reviews').insert(newReview).select().single();
+      if (!error) setReviews((prev) => [{ ...newReview, id: data.id, created_at: data.created_at }, ...prev]);
+    } else {
+      setReviews((prev) => [{ ...newReview, id: Date.now().toString(), created_at: new Date().toISOString() }, ...prev]);
+    }
+    setReviewDraft({ name: '', stars: 5, text: '' });
+    setSubmittingReview(false);
+    showToast('Review submitted — thanks!');
   };
 
   const filteredSections = menuSections
@@ -452,7 +502,7 @@ export default function RestaurantPage() {
             )}
             <div className="items-grid">
               {section.items.map((item) => (
-                <div key={item.name} className="menu-item">
+                <div key={item.name} className={`menu-item${item.soldOut ? ' menu-item-sold-out' : ''}`}>
                   <div className="item-image" onClick={() => openProfile(item)}>
                     {item.imageData ? (
                       <img
@@ -484,8 +534,15 @@ export default function RestaurantPage() {
                         {item.initials}
                       </div>
                     )}
+                    {item.soldOut && <div className="sold-out-stamp">SOLD OUT</div>}
                   </div>
                   <div className="item-name">{item.name}</div>
+                  {(() => { const r = getItemRating(item); return r ? (
+                    <div className="item-rating">
+                      <span>{renderStars(r.avg)}</span>
+                      <span style={{ fontFamily: "'Crimson Text', serif", color: '#888', fontSize: '0.85rem' }}>{r.avg} ({r.count})</span>
+                    </div>
+                  ) : null; })()}
                   <button className="view-profile-btn" onClick={() => openProfile(item)}>
                     View Profile
                   </button>
@@ -494,14 +551,17 @@ export default function RestaurantPage() {
                     <div className="item-price">${formatPrice(item.price)}</div>
                     <button
                       className="add-btn"
-                      onClick={() => addToCart(item.name, item.price)}
+                      onClick={() => !item.soldOut && addToCart(item.name, item.price)}
+                      disabled={item.soldOut}
                       style={
-                        justAdded.has(item.name)
-                          ? { background: 'var(--gold)', color: 'var(--dark)' }
-                          : {}
+                        item.soldOut
+                          ? { background: '#999', cursor: 'not-allowed', color: '#eee' }
+                          : justAdded.has(item.name)
+                            ? { background: 'var(--gold)', color: 'var(--dark)' }
+                            : {}
                       }
                     >
-                      <span>{justAdded.has(item.name) ? 'Added! ✓' : 'Add to Cart'}</span>
+                      <span>{item.soldOut ? 'Sold Out' : justAdded.has(item.name) ? 'Added! ✓' : 'Add to Cart'}</span>
                     </button>
                   </div>
                 </div>
@@ -709,10 +769,18 @@ export default function RestaurantPage() {
           <div className="receipt">
             <button className="receipt-close" onClick={closeReceipt}>×</button>
 
+            {/* Confirmation Banner */}
+            <div className="order-confirm-banner">
+              <div className="order-confirm-title">Order Received!</div>
+              <div className="order-confirm-time">Estimated arrival time</div>
+              <div className="order-confirm-eta">{receiptData.estimatedMin} min</div>
+              <div className="order-confirm-sub">Sit tight — your order is being prepared</div>
+            </div>
+
             {/* Header */}
             <div className="receipt-header">
               <div className="receipt-brand">Who&apos;s for Dinner?</div>
-              <div className="receipt-tagline">Order Confirmation</div>
+              <div className="receipt-tagline">Order Details</div>
               <div className="receipt-divider-gold" />
             </div>
 
@@ -857,12 +925,81 @@ export default function RestaurantPage() {
                 </div>
               )}
 
+              {/* Reviews Section */}
+              {(() => {
+                const itemReviews = reviews.filter((r) => r.item_name === selectedItem.name);
+                const rating = getItemRating(selectedItem);
+                return (
+                  <div className="profile-reviews">
+                    <div className="profile-reviews-header">
+                      {rating ? (
+                        <div className="profile-rating-summary">
+                          <div className="profile-rating-stars">{renderStars(rating.avg, 1.4)}</div>
+                          <div className="profile-rating-avg">{rating.avg}</div>
+                          <div className="profile-rating-count">({rating.count} review{rating.count !== 1 ? 's' : ''})</div>
+                        </div>
+                      ) : (
+                        <div className="profile-rating-none">No reviews yet — be the first!</div>
+                      )}
+                    </div>
+
+                    {itemReviews.length > 0 && (
+                      <div className="review-list">
+                        {itemReviews.map((r) => (
+                          <div key={r.id} className="review-card">
+                            <div className="review-stars">{renderStars(r.stars)}</div>
+                            <div className="review-author">{r.reviewer_name}</div>
+                            {r.review_text && <div className="review-text">&ldquo;{r.review_text}&rdquo;</div>}
+                            <div className="review-date">{new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="write-review">
+                      <div className="write-review-title">Leave a Review</div>
+                      <input
+                        className="profile-review-input"
+                        placeholder="Your name"
+                        value={reviewDraft.name}
+                        onChange={(e) => setReviewDraft((p) => ({ ...p, name: e.target.value }))}
+                      />
+                      <div className="star-picker">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <button key={s} className="star-btn" onClick={() => setReviewDraft((p) => ({ ...p, stars: s }))}>
+                            <span style={{ color: s <= reviewDraft.stars ? '#f0a500' : '#ddd', fontSize: '1.6rem' }}>★</span>
+                          </button>
+                        ))}
+                      </div>
+                      <textarea
+                        className="profile-review-input"
+                        placeholder="Write your review..."
+                        rows={3}
+                        value={reviewDraft.text}
+                        onChange={(e) => setReviewDraft((p) => ({ ...p, text: e.target.value }))}
+                        style={{ resize: 'none' }}
+                      />
+                      <button
+                        className="profile-add-btn"
+                        style={{ marginTop: '8px', fontSize: '0.9rem', padding: '10px 20px' }}
+                        onClick={() => submitReview(selectedItem.name)}
+                        disabled={submittingReview}
+                      >
+                        {submittingReview ? 'Submitting...' : 'Submit Review'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="profile-actions">
                 <button
                   className="profile-add-btn"
-                  onClick={() => { addToCart(selectedItem.name, selectedItem.price); setSelectedItem(null); }}
+                  onClick={() => { if (!selectedItem.soldOut) { addToCart(selectedItem.name, selectedItem.price); setSelectedItem(null); } }}
+                  disabled={selectedItem.soldOut}
+                  style={selectedItem.soldOut ? { background: '#999', cursor: 'not-allowed' } : {}}
                 >
-                  Add to Cart — ${formatPrice(selectedItem.price)}
+                  {selectedItem.soldOut ? 'Sold Out' : `Add to Cart — $${formatPrice(selectedItem.price)}`}
                 </button>
                 {profileList.length > 1 && (
                   <div className="profile-browse-row">

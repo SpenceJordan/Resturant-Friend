@@ -158,6 +158,31 @@ function EditForm({ editDraft, setEditDraft, editGalleryInputRef, handleEditGall
         <button type="button" className="random-btn" onClick={() => editGalleryInputRef.current?.click()}>+ Add Photos</button>
         <input ref={editGalleryInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleEditGalleryUpload} />
       </div>
+      <div className="admin-form-group" style={{ marginBottom: '12px' }}>
+        <label className="admin-label">Rating Override</label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.88rem', color: '#555' }}>
+            <input
+              type="checkbox"
+              checked={editDraft.ratingOverrideEnabled || false}
+              onChange={(e) => setEditDraft((p) => ({ ...p, ratingOverrideEnabled: e.target.checked }))}
+              style={{ accentColor: 'var(--red)', width: '14px', height: '14px' }}
+            />
+            Override stars
+          </label>
+          {editDraft.ratingOverrideEnabled && (
+            <input
+              className="admin-input"
+              type="number" min="1" max="5" step="0.1"
+              placeholder="e.g. 4.8"
+              value={editDraft.ratingOverride || ''}
+              onChange={(e) => setEditDraft((p) => ({ ...p, ratingOverride: e.target.value }))}
+              style={{ width: '90px', marginBottom: 0 }}
+            />
+          )}
+          {editDraft.ratingOverrideEnabled && <span style={{ fontSize: '0.75rem', color: '#999' }}>Uncheck to use real reviews</span>}
+        </div>
+      </div>
       <div style={{ display: 'flex', gap: '10px' }}>
         <button className="admin-submit" style={{ margin: 0, flex: 1, padding: '10px' }} onClick={onSave}>Save</button>
         <button className="del-btn" style={{ flex: 1 }} onClick={onCancel}>Cancel</button>
@@ -219,6 +244,9 @@ export default function AdminPage() {
             section: i.section, imageData: i.image_data, imagePosition: i.image_position || '',
             extraImages: i.extra_images || [],
             gradientStart: i.gradient_start, gradientEnd: i.gradient_end, initials: i.initials,
+            soldOut: i.sold_out || false,
+            ratingOverride: i.rating_override ?? null,
+            ratingOverrideEnabled: i.rating_override_enabled || false,
           })));
         }
         if (!settingsRes.error && settingsRes.data) {
@@ -328,6 +356,8 @@ export default function AdminPage() {
       extraImages: ov?.extraImages ?? item.extraImages ?? [],
       imageData: item.imageData ?? null,
       imagePosition: ov?.imagePosition ?? item.imagePosition ?? '',
+      ratingOverride: ov?.ratingOverride ?? item.ratingOverride ?? '',
+      ratingOverrideEnabled: ov?.ratingOverrideEnabled ?? item.ratingOverrideEnabled ?? false,
     });
   };
 
@@ -338,7 +368,7 @@ export default function AdminPage() {
       showToast('Name and valid price are required!', 'error');
       return;
     }
-    const updated = { ...itemOverrides, [key]: { name: editDraft.name.trim(), price, description: editDraft.description.trim(), bio: editDraft.bio?.trim() || null, extraImages: editDraft.extraImages || [], imageData: editDraft.imageData || null, imagePosition: editDraft.imagePosition || '' } };
+    const updated = { ...itemOverrides, [key]: { name: editDraft.name.trim(), price, description: editDraft.description.trim(), bio: editDraft.bio?.trim() || null, extraImages: editDraft.extraImages || [], imageData: editDraft.imageData || null, imagePosition: editDraft.imagePosition || '', ratingOverride: editDraft.ratingOverride ? parseFloat(editDraft.ratingOverride) : null, ratingOverrideEnabled: editDraft.ratingOverrideEnabled || false } };
     setItemOverrides(updated);
     localStorage.setItem('wfd_item_overrides', JSON.stringify(updated));
     setEditingKey(null);
@@ -353,7 +383,7 @@ export default function AdminPage() {
     }
     const updated = customItems.map((i) =>
       i.id === itemId
-        ? { ...i, name: editDraft.name.trim(), price, description: editDraft.description.trim(), bio: editDraft.bio?.trim() || null, extraImages: editDraft.extraImages || [], imageData: editDraft.imageData ?? i.imageData, imagePosition: editDraft.imagePosition ?? i.imagePosition }
+        ? { ...i, name: editDraft.name.trim(), price, description: editDraft.description.trim(), bio: editDraft.bio?.trim() || null, extraImages: editDraft.extraImages || [], imageData: editDraft.imageData ?? i.imageData, imagePosition: editDraft.imagePosition ?? i.imagePosition, ratingOverride: editDraft.ratingOverride ? parseFloat(editDraft.ratingOverride) : null, ratingOverrideEnabled: editDraft.ratingOverrideEnabled || false }
         : i
     );
     setCustomItems(updated);
@@ -366,6 +396,8 @@ export default function AdminPage() {
         extra_images: editDraft.extraImages || [],
         image_data: editDraft.imageData ?? updated.find(i => i.id === itemId)?.imageData,
         image_position: editDraft.imagePosition || null,
+        rating_override: editDraft.ratingOverride ? parseFloat(editDraft.ratingOverride) : null,
+        rating_override_enabled: editDraft.ratingOverrideEnabled || false,
       }).eq('id', itemId);
     } else {
       localStorage.setItem('wfd_custom_items', JSON.stringify(updated));
@@ -381,6 +413,26 @@ export default function AdminPage() {
     setItemOverrides(updated);
     localStorage.setItem('wfd_item_overrides', JSON.stringify(updated));
     showToast('Reset to default!');
+  };
+
+  const toggleSoldOut = async (sectionTitle, item, isCustom) => {
+    const newVal = !item.soldOut;
+    if (isCustom) {
+      const updated = customItems.map((i) => i.id === item.id ? { ...i, soldOut: newVal } : i);
+      setCustomItems(updated);
+      if (supabase) {
+        await supabase.from('menu_items').update({ sold_out: newVal }).eq('id', item.id);
+      } else {
+        localStorage.setItem('wfd_custom_items', JSON.stringify(updated));
+      }
+    } else {
+      const key = `${sectionTitle}:${item.name}`;
+      const ov = itemOverrides[key] || {};
+      const updated = { ...itemOverrides, [key]: { ...ov, soldOut: newVal } };
+      setItemOverrides(updated);
+      localStorage.setItem('wfd_item_overrides', JSON.stringify(updated));
+    }
+    showToast(newVal ? 'Marked as sold out!' : 'Back in stock!');
   };
 
   // ── Section config helpers ──
@@ -1458,8 +1510,15 @@ export default function AdminPage() {
                                   ${displayPrice % 1 === 0 ? displayPrice : displayPrice.toFixed(2)} — {displayDesc}
                                 </div>
                               </div>
-                              <div style={{ display: 'flex', gap: '8px' }}>
+                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                 {ov && <button className="del-btn" style={{ borderColor: '#aaa', color: '#aaa' }} onClick={() => resetOverride(sectionTitle, item.name)}>Reset</button>}
+                                <button
+                                  className="section-add-btn"
+                                  style={{ padding: '6px 14px', fontSize: '0.85rem', background: (ov?.soldOut) ? '#c84444' : undefined, color: (ov?.soldOut) ? 'white' : undefined, borderColor: (ov?.soldOut) ? '#c84444' : undefined }}
+                                  onClick={() => toggleSoldOut(sectionTitle, { ...item, soldOut: ov?.soldOut ?? false }, false)}
+                                >
+                                  {(ov?.soldOut) ? 'Sold Out ✓' : 'Sold Out'}
+                                </button>
                                 <button className="section-add-btn" style={{ padding: '6px 18px', fontSize: '0.9rem' }} onClick={() => isEditing ? setEditingKey(null) : startEdit(sectionTitle, item, false)}>
                                   {isEditing ? 'Close' : 'Edit'}
                                 </button>
@@ -1489,8 +1548,15 @@ export default function AdminPage() {
                                   </div>
                                 </div>
                               </div>
-                              <div style={{ display: 'flex', gap: '8px' }}>
+                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                 <button className="del-btn" onClick={() => deleteItem(item.id)}>Remove</button>
+                                <button
+                                  className="section-add-btn"
+                                  style={{ padding: '6px 14px', fontSize: '0.85rem', background: item.soldOut ? '#c84444' : undefined, color: item.soldOut ? 'white' : undefined, borderColor: item.soldOut ? '#c84444' : undefined }}
+                                  onClick={() => toggleSoldOut(sectionTitle, item, true)}
+                                >
+                                  {item.soldOut ? 'Sold Out ✓' : 'Sold Out'}
+                                </button>
                                 <button className="section-add-btn" style={{ padding: '6px 18px', fontSize: '0.9rem' }} onClick={() => isEditing ? setEditingKey(null) : startEdit(sectionTitle, item, true)}>
                                   {isEditing ? 'Close' : 'Edit'}
                                 </button>
